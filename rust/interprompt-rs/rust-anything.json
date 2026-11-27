@@ -1,0 +1,120 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/home/dev/antigravity/serena",
+  "unit": "src/interprompt/",
+  "language": "python",
+  "kind": "pyo3",
+  "crate_name": "interprompt-rs",
+  "exports": [
+    {
+      "name": "autogenerate_prompt_factory_module",
+      "file": "src/interprompt/prompt_factory.py",
+      "line": 45,
+      "params": [
+        {
+          "name": "prompts_dir",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "target_module_path",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "interprompt_library_package",
+          "ts_type": "string",
+          "optional": true,
+          "rest": false,
+          "default": "\"interprompt\""
+        },
+        {
+          "name": "class_name",
+          "ts_type": "string",
+          "optional": true,
+          "rest": false,
+          "default": "\"PromptFactory\""
+        }
+      ],
+      "returns": "undefined",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    }
+  ],
+  "classes": [
+    {
+      "name": "ParameterizedTemplateInterface",
+      "file": "src/interprompt/jinja_template.py",
+      "line": 14,
+      "constructor": [],
+      "methods": [
+        {
+          "name": "get_parameters",
+          "file": "src/interprompt/jinja_template.py",
+          "line": 15,
+          "params": [],
+          "returns": "string[]",
+          "is_async": false,
+          "is_generator": false,
+          "type_params": [],
+          "uses_instanceof": false
+        }
+      ],
+      "blocker": null
+    }
+  ],
+  "js_only": [
+    {
+      "name": "JinjaTemplate",
+      "file": "src/interprompt/jinja_template.py",
+      "line": 29,
+      "reason": "class: inherits from ParameterizedTemplateInterface"
+    },
+    {
+      "name": "PromptTemplate",
+      "file": "src/interprompt/multilang_prompt.py",
+      "line": 16,
+      "reason": "class: inherits from ToStringMixin, ParameterizedTemplateInterface, public attribute `name`, public attribute `path`"
+    },
+    {
+      "name": "PromptList",
+      "file": "src/interprompt/multilang_prompt.py",
+      "line": 35,
+      "reason": "class: public attribute `items`"
+    },
+    {
+      "name": "LanguageFallbackMode",
+      "file": "src/interprompt/multilang_prompt.py",
+      "line": 50,
+      "reason": "class: inherits from Enum, public class attribute `ANY`, public class attribute `EXCEPTION`, public class attribute `USE_DEFAULT_LANG`"
+    },
+    {
+      "name": "MultiLangPromptTemplate",
+      "file": "src/interprompt/multilang_prompt.py",
+      "line": 134,
+      "reason": "class: `@property` method `name`, inherits from ParameterizedTemplateInterface, special method `__len__`"
+    },
+    {
+      "name": "MultiLangPromptList",
+      "file": "src/interprompt/multilang_prompt.py",
+      "line": 199,
+      "reason": "class: inherits from _MultiLangContainer[PromptList]"
+    },
+    {
+      "name": "MultiLangPromptCollection",
+      "file": "src/interprompt/multilang_prompt.py",
+      "line": 203,
+      "reason": "class: public attribute `fallback_mode`, special method `__len__`"
+    },
+    {
+      "name": "PromptFactoryBase",
+      "file": "src/interprompt/prompt_factory.py",
+      "line": 12,
+      "reason": "class: public attribute `lang_code`"
+    }
+  ]
+}

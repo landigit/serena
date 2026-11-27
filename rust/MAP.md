@@ -25,10 +25,14 @@ plugin. Serena stays installed as reference.
 
 ## Next
 
+- Continue the rust-anything unit loop: `src/serena/lsp/` failed at record (module import cycle);
+  `repo_dir_sync.py` bridged + recorded (144 cases, mostly errors) and was set aside; `src/interprompt/`
+  bridged (1 export) and set aside.
 - Add `tree-sitter` grammars for more languages (Ruby, PHP, C#, Kotlin).
 - Use a project-load notification instead of the first-call settle for LSP.
 - Add a project-wide `diagnostics` mode with an ignore-aware file cap.
 - Extend the gated name-path unit with overload-aware components.
+- Write/update `rust/HANDOFF.md` at each checkpoint.
 
 ## Files
 
