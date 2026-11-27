@@ -10,7 +10,7 @@ plugin. Serena stays installed as reference.
 | --- | --- | --- |
 | `rust/name-path` (Serena `NamePathMatcher`) | done | `rust-anything gate` passed; 464/464 recorded cases |
 | `rust/diagnostics-group-rs` (`GroupedDiagnostics`) | done | `rust-anything gate` passed; 92/92 recorded cases |
-| `rust/astlens` (binary, greenfield) | done v1+ | `cargo test` 11/11, `cargo clippy -D warnings`, release build |
+| `rust/astlens` (binary, greenfield) | done v1.2 | `cargo test` 18/18, `cargo clippy -D warnings`, release build |
 
 ## Tools
 
@@ -30,8 +30,7 @@ plugin. Serena stays installed as reference.
   - `src/serena/lsp/` (`rust/lsp-rs`): `GroupedDiagnostics` is now ported and gated via `rust/diagnostics-group-rs` and wired into `astlens`'s `diagnostics` tool (`grouped: true`). Direct `record` of `src/serena/lsp/` hits a pre-existing circular import (`serena.util.text_utils` <-> `solidlsp.ls` when `serena.agent` isn't imported first).
   - `repo_dir_sync.py` (`rust/repo-dir-sync-rs`): bridged + recorded (144 cases, mostly errors) and set aside.
   - `src/interprompt/` (`rust/interprompt-rs`): bridged + recorded (468 cases via `.venv/bin/python`) and set aside per ADR-001.
-- Add `tree-sitter` grammars for more languages (Ruby, PHP, C#, Kotlin).
-- Use a project-load notification instead of the first-call settle for non-Rust LSPs.
+- Use a project-load notification instead of the first-call settle for non-Rust/non-Lean LSPs.
 - Add a project-wide `diagnostics` mode with an ignore-aware file cap.
 - Extend the gated name-path unit with overload-aware components.
 - Write/update `rust/HANDOFF.md` at each checkpoint.

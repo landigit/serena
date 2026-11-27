@@ -258,6 +258,14 @@ Follow the link for specific instructions on how to set up Serena for Claude Cod
 
 Please refer to the [user guide](https://oraios.github.io/serena/02-usage/000_intro.html) for detailed instructions on how to use Serena effectively.
 
+## Rust MCP Server (`astlens`)
+
+This repository also includes **`astlens`** (`rust/astlens`), a standalone Rust stdio MCP server and companion `rust-anything` port that replaces Serena's semantic layer with five stateless tools (`ast_outline`, `read_symbol`, `find_references`, `edit_symbol`, and `diagnostics`).
+
+- **Workspace & architecture**: see [rust/README.md](rust/README.md), [rust/DECISIONS.md](rust/DECISIONS.md), and [docs/03-special-guides/astlens.md](docs/03-special-guides/astlens.md).
+- **`astlens` crate & tools**: see [rust/astlens/README.md](rust/astlens/README.md).
+- **Port status & gated units**: see [rust/MAP.md](rust/MAP.md), [rust/PORT_MAP.md](rust/PORT_MAP.md), and [rust/HANDOFF.md](rust/HANDOFF.md) (`rust/name-path` 464/464, `rust/diagnostics-group-rs` 92/92).
+
 ## Partner Offerings
 
 <a href="https://infistar.cc/register?aff=SERENA&ref_source=link"><img src="resources/infistar.png" alt="Infistar"></a>
