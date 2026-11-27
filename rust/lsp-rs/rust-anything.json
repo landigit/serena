@@ -1,0 +1,132 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/home/dev/antigravity/serena",
+  "unit": "src/serena/lsp/",
+  "language": "python",
+  "kind": "pyo3",
+  "crate_name": "lsp-rs",
+  "exports": [],
+  "classes": [
+    {
+      "name": "GroupedDiagnostics",
+      "file": "src/serena/lsp/lsp_diagnostics.py",
+      "line": 95,
+      "constructor": [],
+      "methods": [
+        {
+          "name": "add",
+          "file": "src/serena/lsp/lsp_diagnostics.py",
+          "line": 99,
+          "params": [
+            {
+              "name": "relative_path",
+              "ts_type": "string",
+              "optional": false,
+              "rest": false
+            },
+            {
+              "name": "name_path",
+              "ts_type": "string",
+              "optional": false,
+              "rest": false
+            },
+            {
+              "name": "diagnostic",
+              "ts_type": "ls_types.Diagnostic",
+              "optional": false,
+              "rest": false
+            }
+          ],
+          "returns": "undefined",
+          "is_async": false,
+          "is_generator": false,
+          "type_params": [],
+          "uses_instanceof": false
+        },
+        {
+          "name": "get_dict",
+          "file": "src/serena/lsp/lsp_diagnostics.py",
+          "line": 105,
+          "params": [],
+          "returns": "Record<string, Record<string, Record<string, Record<string, unknown>[]>>>",
+          "is_async": false,
+          "is_generator": false,
+          "type_params": [],
+          "uses_instanceof": false
+        }
+      ],
+      "blocker": null
+    },
+    {
+      "name": "DiagnosticsDiff",
+      "file": "src/serena/lsp/lsp_diagnostics.py",
+      "line": 151,
+      "constructor": [
+        {
+          "name": "before_snapshot",
+          "ts_type": "PublishedDiagnosticsSnapshot",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "edited_files",
+          "ts_type": "EditedFilePath[]",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "symbol_retriever",
+          "ts_type": "LanguageServerSymbolRetriever",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "methods": [
+        {
+          "name": "get_grouped_diagnostics",
+          "file": "src/serena/lsp/lsp_diagnostics.py",
+          "line": 206,
+          "params": [],
+          "returns": "GroupedDiagnostics",
+          "is_async": false,
+          "is_generator": false,
+          "type_params": [],
+          "uses_instanceof": false
+        }
+      ],
+      "blocker": null
+    }
+  ],
+  "js_only": [
+    {
+      "name": "LSPLanguageBackend",
+      "file": "src/serena/lsp/lsp_backend.py",
+      "line": 21,
+      "reason": "class: `@override` method `create_code_editor`, `@override` method `create_facades`, `@override` method `create_file_proxy`, `@override` method `get_config_overview_statement`, `@override` method `get_lsp_tool_class_replacements`, `@override` method `get_project_activation_statement`, `@override` method `init_active_project`, `@override` method `is_external_path`, `@override` method `is_source_file`, `@override` method `shutdown_active_project`, inherits from LanguageBackend"
+    },
+    {
+      "name": "EditedFilePath",
+      "file": "src/serena/lsp/lsp_diagnostics.py",
+      "line": 18,
+      "reason": "class: decorated with `@dataclass`, public class attribute `after_relative_path`, public class attribute `before_relative_path`"
+    },
+    {
+      "name": "DiagnosticIdentity",
+      "file": "src/serena/lsp/lsp_diagnostics.py",
+      "line": 24,
+      "reason": "class: `@classmethod` method `from_diagnostic`, decorated with `@dataclass`, public class attribute `code_repr`, public class attribute `end_character`, public class attribute `end_line`, public class attribute `message`, public class attribute `severity`, public class attribute `source`, public class attribute `start_character`, public class attribute `start_line`"
+    },
+    {
+      "name": "PublishedDiagnosticsSnapshot",
+      "file": "src/serena/lsp/lsp_diagnostics.py",
+      "line": 60,
+      "reason": "class: public attribute `generation_by_after_path`, public attribute `warning_identities_by_before_path`"
+    },
+    {
+      "name": "DiagnosticsContext",
+      "file": "src/serena/lsp/lsp_diagnostics.py",
+      "line": 210,
+      "reason": "class: public class attribute `DIAGNOSTICS_KEY`, public class attribute `ENABLE_DIAGNOSTICS_DEFAULT`, special method `__enter__`, special method `__exit__`, takes `*args`"
+    }
+  ]
+}

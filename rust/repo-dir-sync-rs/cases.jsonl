@@ -1,0 +1,144 @@
+{"fn": "popen", "args": [{"a": "b"}], "ok": {"$object": "Popen", "attrs": {"_waitpid_lock": {"$repr": "lock"}, "_input": null, "_communication_started": false, "args": {"a": "b"}, "stdin": {"$object": "BufferedWriter", "attrs": {}}, "stdout": {"$object": "BufferedReader", "attrs": {}}, "stderr": null, "pid": 78403, "returncode": null, "encoding": null, "errors": null, "pipesize": -1, "text_mode": null, "_sigint_wait_secs": 0.25, "_closed_child_pipe_fds": true, "_child_created": true}}}
+{"fn": "popen", "args": [0], "error": "TypeError: 'int' object is not iterable"}
+{"fn": "popen", "args": [null], "error": "TypeError: 'NoneType' object is not iterable"}
+{"fn": "popen", "args": [{"a": {"b": "c"}}], "ok": {"$object": "Popen", "attrs": {"_waitpid_lock": {"$repr": "lock"}, "_input": null, "_communication_started": false, "args": {"a": {"b": "c"}}, "stdin": {"$object": "BufferedWriter", "attrs": {}}, "stdout": {"$object": "BufferedReader", "attrs": {}}, "stderr": null, "pid": 78404, "returncode": null, "encoding": null, "errors": null, "pipesize": -1, "text_mode": null, "_sigint_wait_secs": 0.25, "_closed_child_pipe_fds": true, "_child_created": true}}}
+{"fn": "popen", "args": [true], "error": "TypeError: 'bool' object is not iterable"}
+{"fn": "popen", "args": [[]], "ok": {"$object": "Popen", "attrs": {"_waitpid_lock": {"$repr": "lock"}, "_input": null, "_communication_started": false, "args": [], "stdin": {"$object": "BufferedWriter", "attrs": {}}, "stdout": {"$object": "BufferedReader", "attrs": {}}, "stderr": null, "pid": 78405, "returncode": null, "encoding": null, "errors": null, "pipesize": -1, "text_mode": null, "_sigint_wait_secs": 0.25, "_closed_child_pipe_fds": true, "_child_created": true}}}
+{"fn": "popen", "args": ["x"], "ok": {"$object": "Popen", "attrs": {"_waitpid_lock": {"$repr": "lock"}, "_input": null, "_communication_started": false, "args": "x", "stdin": {"$object": "BufferedWriter", "attrs": {}}, "stdout": {"$object": "BufferedReader", "attrs": {}}, "stderr": null, "pid": 78406, "returncode": null, "encoding": null, "errors": null, "pipesize": -1, "text_mode": null, "_sigint_wait_secs": 0.25, "_closed_child_pipe_fds": true, "_child_created": true}}}
+{"fn": "popen", "args": [{}], "ok": {"$object": "Popen", "attrs": {"_waitpid_lock": {"$repr": "lock"}, "_input": null, "_communication_started": false, "args": {}, "stdin": {"$object": "BufferedWriter", "attrs": {}}, "stdout": {"$object": "BufferedReader", "attrs": {}}, "stderr": null, "pid": 78407, "returncode": null, "encoding": null, "errors": null, "pipesize": -1, "text_mode": null, "_sigint_wait_secs": 0.25, "_closed_child_pipe_fds": true, "_child_created": true}}}
+{"fn": "popen", "args": [["a", 1]], "error": "TypeError: expected str, bytes or os.PathLike object, not int"}
+{"fn": "popen", "args": [{"zebra": 1, "apple": 2, "10": 3, "2": 4, "é": 5, "Apple": 6}], "ok": {"$object": "Popen", "attrs": {"_waitpid_lock": {"$repr": "lock"}, "_input": null, "_communication_started": false, "args": {"zebra": 1, "apple": 2, "10": 3, "2": 4, "é": 5, "Apple": 6}, "stdin": {"$object": "BufferedWriter", "attrs": {}}, "stdout": {"$object": "BufferedReader", "attrs": {}}, "stderr": null, "pid": 78408, "returncode": null, "encoding": null, "errors": null, "pipesize": -1, "text_mode": null, "_sigint_wait_secs": 0.25, "_closed_child_pipe_fds": true, "_child_created": true}}}
+{"fn": "popen", "args": [{"n": 9007199254740993, "f": 1e+21, "t": 0.1, "neg": -7}], "ok": {"$object": "Popen", "attrs": {"_waitpid_lock": {"$repr": "lock"}, "_input": null, "_communication_started": false, "args": {"n": {"$int": "9007199254740993"}, "f": {"$float": "1e+21"}, "t": 0.1, "neg": -7}, "stdin": {"$object": "BufferedWriter", "attrs": {}}, "stdout": {"$object": "BufferedReader", "attrs": {}}, "stderr": null, "pid": 78409, "returncode": null, "encoding": null, "errors": null, "pipesize": -1, "text_mode": null, "_sigint_wait_secs": 0.25, "_closed_child_pipe_fds": true, "_child_created": true}}}
+{"fn": "popen", "args": [[3, 1, 2]], "error": "TypeError: expected str, bytes or os.PathLike object, not int"}
+{"fn": "call", "args": [["a", 1]], "error": "TypeError: expected str, bytes or os.PathLike object, not int"}
+{"fn": "call", "args": [{"a": "b"}], "ok": ""}
+{"fn": "call", "args": [0], "error": "TypeError: 'int' object is not iterable"}
+{"fn": "call", "args": [{}], "ok": ""}
+{"fn": "call", "args": [{"a": {"b": "c"}}], "ok": ""}
+{"fn": "call", "args": [null], "error": "TypeError: 'NoneType' object is not iterable"}
+{"fn": "call", "args": [[]], "ok": ""}
+{"fn": "call", "args": [true], "error": "TypeError: 'bool' object is not iterable"}
+{"fn": "call", "args": ["x"], "ok": ""}
+{"fn": "call", "args": [{"zebra": 1, "apple": 2, "10": 3, "2": 4, "é": 5, "Apple": 6}], "ok": ""}
+{"fn": "call", "args": [{"n": 9007199254740993, "f": 1e+21, "t": 0.1, "neg": -7}], "ok": ""}
+{"fn": "call", "args": [[3, 1, 2]], "error": "TypeError: expected str, bytes or os.PathLike object, not int"}
+{"fn": "execute", "args": [0, true], "error": "TypeError: 'int' object is not iterable"}
+{"fn": "execute", "args": [true, false], "error": "TypeError: 'bool' object is not iterable"}
+{"fn": "execute", "args": [{}, false], "ok": false}
+{"fn": "execute", "args": ["x", false], "ok": false}
+{"fn": "execute", "args": [{}, true], "error": "Exception: Command failed: {}"}
+{"fn": "execute", "args": [{}, {"$undefined": true}], "error": "Exception: Command failed: {}"}
+{"fn": "execute", "args": [null, true], "error": "TypeError: 'NoneType' object is not iterable"}
+{"fn": "execute", "args": [0], "error": "TypeError: 'int' object is not iterable"}
+{"fn": "execute", "args": [{"a": {"b": "c"}}, {"$undefined": true}], "error": "Exception: Command failed: {'a': {'b': 'c'}}"}
+{"fn": "execute", "args": [{"a": {"b": "c"}}, false], "ok": false}
+{"fn": "execute", "args": [["a", 1]], "error": "TypeError: expected str, bytes or os.PathLike object, not int"}
+{"fn": "execute", "args": [["a", 1], false], "error": "TypeError: expected str, bytes or os.PathLike object, not int"}
+{"fn": "execute", "args": [0, false], "error": "TypeError: 'int' object is not iterable"}
+{"fn": "execute", "args": [{"a": "b"}, {"$undefined": true}], "error": "Exception: Command failed: {'a': 'b'}"}
+{"fn": "execute", "args": ["x"], "error": "Exception: Command failed: x"}
+{"fn": "execute", "args": [null, false], "error": "TypeError: 'NoneType' object is not iterable"}
+{"fn": "execute", "args": [{"a": "b"}, true], "error": "Exception: Command failed: {'a': 'b'}"}
+{"fn": "execute", "args": [null, {"$undefined": true}], "error": "TypeError: 'NoneType' object is not iterable"}
+{"fn": "execute", "args": [[], {"$undefined": true}], "error": "Exception: Command failed: []"}
+{"fn": "execute", "args": [true], "error": "TypeError: 'bool' object is not iterable"}
+{"fn": "execute", "args": [[], true], "error": "Exception: Command failed: []"}
+{"fn": "execute", "args": [true, true], "error": "TypeError: 'bool' object is not iterable"}
+{"fn": "execute", "args": ["x", true], "error": "Exception: Command failed: x"}
+{"fn": "execute", "args": [[], false], "ok": false}
+{"fn": "execute", "args": [{"a": "b"}, false], "ok": false}
+{"fn": "execute", "args": ["x", {"$undefined": true}], "error": "Exception: Command failed: x"}
+{"fn": "execute", "args": [{"a": {"b": "c"}}, true], "error": "Exception: Command failed: {'a': {'b': 'c'}}"}
+{"fn": "execute", "args": [null], "error": "TypeError: 'NoneType' object is not iterable"}
+{"fn": "execute", "args": [true, {"$undefined": true}], "error": "TypeError: 'bool' object is not iterable"}
+{"fn": "execute", "args": [["a", 1], true], "error": "TypeError: expected str, bytes or os.PathLike object, not int"}
+{"fn": "execute", "args": [{"a": "b"}], "error": "Exception: Command failed: {'a': 'b'}"}
+{"fn": "execute", "args": [{"a": {"b": "c"}}], "error": "Exception: Command failed: {'a': {'b': 'c'}}"}
+{"fn": "execute", "args": [[]], "error": "Exception: Command failed: []"}
+{"fn": "execute", "args": [["a", 1], {"$undefined": true}], "error": "TypeError: expected str, bytes or os.PathLike object, not int"}
+{"fn": "execute", "args": [0, {"$undefined": true}], "error": "TypeError: 'int' object is not iterable"}
+{"fn": "execute", "args": [{}], "error": "Exception: Command failed: {}"}
+{"fn": "execute", "args": [{"zebra": 1, "apple": 2, "10": 3, "2": 4, "é": 5, "Apple": 6}, true], "error": "Exception: Command failed: {'zebra': 1, 'apple': 2, '10': 3, '2': 4, 'é': 5, 'Apple': 6}"}
+{"fn": "execute", "args": [{"n": 9007199254740993, "f": 1e+21, "t": 0.1, "neg": -7}, true], "error": "Exception: Command failed: {'n': 9007199254740993, 'f': 1e+21, 't': 0.1, 'neg': -7}"}
+{"fn": "execute", "args": [[3, 1, 2], true], "error": "TypeError: expected str, bytes or os.PathLike object, not int"}
+{"fn": "gitLog", "args": [{"a": {"b": "c"}}, true], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [null, null], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not NoneType"}
+{"fn": "gitLog", "args": [0, 0], "error": "NotADirectoryError: [Errno 20] Not a directory: 0"}
+{"fn": "gitLog", "args": [null, 0], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not NoneType"}
+{"fn": "gitLog", "args": [[], 0], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitLog", "args": [true, {}], "error": "NotADirectoryError: [Errno 20] Not a directory: True"}
+{"fn": "gitLog", "args": [["a", 1], ["a", 1]], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitLog", "args": [["a", 1], "x"], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitLog", "args": [{"a": {"b": "c"}}, null], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [null, []], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not NoneType"}
+{"fn": "gitLog", "args": [{"a": "b"}, 0], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [{"a": "b"}, null], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": ["x", "x"], "error": "FileNotFoundError: [Errno 2] No such file or directory: 'x'"}
+{"fn": "gitLog", "args": [{"a": {"b": "c"}}, {}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [{"a": "b"}, ["a", 1]], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": ["x", null], "error": "FileNotFoundError: [Errno 2] No such file or directory: 'x'"}
+{"fn": "gitLog", "args": [0, {"a": {"b": "c"}}], "error": "NotADirectoryError: [Errno 20] Not a directory: 0"}
+{"fn": "gitLog", "args": [["a", 1], {"a": {"b": "c"}}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitLog", "args": [["a", 1], {}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitLog", "args": [[], null], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitLog", "args": [{}, {}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [0, []], "error": "NotADirectoryError: [Errno 20] Not a directory: 0"}
+{"fn": "gitLog", "args": ["x", ["a", 1]], "error": "FileNotFoundError: [Errno 2] No such file or directory: 'x'"}
+{"fn": "gitLog", "args": [{"a": {"b": "c"}}, {"a": {"b": "c"}}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [{"a": "b"}, {"a": {"b": "c"}}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [{}, []], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [{}, {"a": {"b": "c"}}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [true, {"a": "b"}], "error": "NotADirectoryError: [Errno 20] Not a directory: True"}
+{"fn": "gitLog", "args": ["x", {}], "error": "FileNotFoundError: [Errno 2] No such file or directory: 'x'"}
+{"fn": "gitLog", "args": [null, true], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not NoneType"}
+{"fn": "gitLog", "args": [0, {}], "error": "NotADirectoryError: [Errno 20] Not a directory: 0"}
+{"fn": "gitLog", "args": [{"a": {"b": "c"}}, {"a": "b"}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [true, {"a": {"b": "c"}}], "error": "NotADirectoryError: [Errno 20] Not a directory: True"}
+{"fn": "gitLog", "args": [0, ["a", 1]], "error": "NotADirectoryError: [Errno 20] Not a directory: 0"}
+{"fn": "gitLog", "args": [["a", 1], 0], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitLog", "args": [{"a": "b"}, {"a": "b"}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [null, ["a", 1]], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not NoneType"}
+{"fn": "gitLog", "args": [null, {"a": "b"}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not NoneType"}
+{"fn": "gitLog", "args": ["x", []], "error": "FileNotFoundError: [Errno 2] No such file or directory: 'x'"}
+{"fn": "gitLog", "args": [null, "x"], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not NoneType"}
+{"fn": "gitLog", "args": ["x", true], "error": "FileNotFoundError: [Errno 2] No such file or directory: 'x'"}
+{"fn": "gitLog", "args": [{"a": {"b": "c"}}, 0], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [null, {"a": {"b": "c"}}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not NoneType"}
+{"fn": "gitLog", "args": [true, null], "error": "NotADirectoryError: [Errno 20] Not a directory: True"}
+{"fn": "gitLog", "args": [{}, null], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [{}, ["a", 1]], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [["a", 1], null], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitLog", "args": [[], "x"], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitLog", "args": [{"a": {"b": "c"}}, []], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [0, true], "error": "NotADirectoryError: [Errno 20] Not a directory: 0"}
+{"fn": "gitLog", "args": [{"zebra": 1, "apple": 2, "10": 3, "2": 4, "é": 5, "Apple": 6}, true], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [{"n": 9007199254740993, "f": 1e+21, "t": 0.1, "neg": -7}, true], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [[3, 1, 2], true], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitLog", "args": [{}, true], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [{"a": {"b": "c"}}, {"zebra": 1, "apple": 2, "10": 3, "2": 4, "é": 5, "Apple": 6}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [{"a": {"b": "c"}}, {"n": 9007199254740993, "f": 1e+21, "t": 0.1, "neg": -7}], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitLog", "args": [{"a": {"b": "c"}}, [3, 1, 2]], "error": "TypeError: chdir: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitCommit", "args": ["x"], "ok": null}
+{"fn": "gitCommit", "args": [[]], "error": "AttributeError: 'list' object has no attribute 'encode'"}
+{"fn": "gitCommit", "args": [{"a": {"b": "c"}}], "error": "AttributeError: 'dict' object has no attribute 'encode'"}
+{"fn": "gitCommit", "args": [{}], "error": "AttributeError: 'dict' object has no attribute 'encode'"}
+{"fn": "gitCommit", "args": [null], "error": "AttributeError: 'NoneType' object has no attribute 'encode'"}
+{"fn": "gitCommit", "args": [{"a": "b"}], "error": "AttributeError: 'dict' object has no attribute 'encode'"}
+{"fn": "gitCommit", "args": [["a", 1]], "error": "AttributeError: 'list' object has no attribute 'encode'"}
+{"fn": "gitCommit", "args": [0], "error": "AttributeError: 'int' object has no attribute 'encode'"}
+{"fn": "gitCommit", "args": [true], "error": "AttributeError: 'bool' object has no attribute 'encode'"}
+{"fn": "gitCommit", "args": [{"zebra": 1, "apple": 2, "10": 3, "2": 4, "é": 5, "Apple": 6}], "error": "AttributeError: 'dict' object has no attribute 'encode'"}
+{"fn": "gitCommit", "args": [{"n": 9007199254740993, "f": 1e+21, "t": 0.1, "neg": -7}], "error": "AttributeError: 'dict' object has no attribute 'encode'"}
+{"fn": "gitCommit", "args": [[3, 1, 2]], "error": "AttributeError: 'list' object has no attribute 'encode'"}
+{"fn": "gitCommitWithMessageFromFile", "args": [[]], "error": "TypeError: stat: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitCommitWithMessageFromFile", "args": [{"a": "b"}], "error": "TypeError: stat: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitCommitWithMessageFromFile", "args": [["a", 1]], "error": "TypeError: stat: path should be string, bytes, os.PathLike or integer, not list"}
+{"fn": "gitCommitWithMessageFromFile", "args": [{"a": {"b": "c"}}], "error": "TypeError: stat: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitCommitWithMessageFromFile", "args": ["x"], "error": "FileNotFoundError: x not found in /tmp/rust-anything-app-unit-78400-0"}
+{"fn": "gitCommitWithMessageFromFile", "args": [null], "error": "TypeError: stat: path should be string, bytes, os.PathLike or integer, not NoneType"}
+{"fn": "gitCommitWithMessageFromFile", "args": [{}], "error": "TypeError: stat: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitCommitWithMessageFromFile", "args": [true], "error": "TypeError: unlink: path should be string, bytes or os.PathLike, not bool"}
+{"fn": "gitCommitWithMessageFromFile", "args": [0], "error": "TypeError: unlink: path should be string, bytes or os.PathLike, not int"}
+{"fn": "gitCommitWithMessageFromFile", "args": [{"zebra": 1, "apple": 2, "10": 3, "2": 4, "é": 5, "Apple": 6}], "error": "TypeError: stat: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitCommitWithMessageFromFile", "args": [{"n": 9007199254740993, "f": 1e+21, "t": 0.1, "neg": -7}], "error": "TypeError: stat: path should be string, bytes, os.PathLike or integer, not dict"}
+{"fn": "gitCommitWithMessageFromFile", "args": [[3, 1, 2]], "error": "TypeError: stat: path should be string, bytes, os.PathLike or integer, not list"}

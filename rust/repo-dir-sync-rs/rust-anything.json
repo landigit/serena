@@ -1,0 +1,146 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/home/dev/antigravity/serena",
+  "unit": "repo_dir_sync.py",
+  "language": "python",
+  "kind": "pyo3",
+  "crate_name": "repo-dir-sync-rs",
+  "exports": [
+    {
+      "name": "popen",
+      "file": "repo_dir_sync.py",
+      "line": 12,
+      "params": [
+        {
+          "name": "cmd",
+          "ts_type": "unknown",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "unknown",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "call",
+      "file": "repo_dir_sync.py",
+      "line": 18,
+      "params": [
+        {
+          "name": "cmd",
+          "ts_type": "unknown",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "unknown",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "execute",
+      "file": "repo_dir_sync.py",
+      "line": 23,
+      "params": [
+        {
+          "name": "cmd",
+          "ts_type": "unknown",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "exceptionOnError",
+          "ts_type": "boolean",
+          "optional": true,
+          "rest": false,
+          "default": "True"
+        }
+      ],
+      "returns": "unknown",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "gitLog",
+      "file": "repo_dir_sync.py",
+      "line": 40,
+      "params": [
+        {
+          "name": "path",
+          "ts_type": "unknown",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "arg",
+          "ts_type": "unknown",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "unknown",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "gitCommit",
+      "file": "repo_dir_sync.py",
+      "line": 48,
+      "params": [
+        {
+          "name": "msg",
+          "ts_type": "unknown",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "unknown",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "gitCommitWithMessageFromFile",
+      "file": "repo_dir_sync.py",
+      "line": 54,
+      "params": [
+        {
+          "name": "commitMsgFilename",
+          "ts_type": "unknown",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "unknown",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    }
+  ],
+  "classes": [],
+  "js_only": [
+    {
+      "name": "OtherRepo",
+      "file": "repo_dir_sync.py",
+      "line": 64,
+      "reason": "class: public attribute `branch`, public attribute `libRepo`, public attribute `name`, public attribute `pathToLibInThisRepo`, public class attribute `SYNC_BACKUP_DIR`, public class attribute `SYNC_COMMIT_ID_FILE_LIB_REPO`, public class attribute `SYNC_COMMIT_ID_FILE_THIS_REPO`, public class attribute `SYNC_COMMIT_MESSAGE`"
+    },
+    {
+      "name": "LibRepo",
+      "file": "repo_dir_sync.py",
+      "line": 312,
+      "reason": "class: public attribute `fullyIgnoredUnversionedDirectories`, public attribute `fullyIgnoredVersionedDirectories`, public attribute `ignoredDirectories`, public attribute `ignoredFileGlobPatterns`, public attribute `libDirectory`, public attribute `libPath`, public attribute `name`, public attribute `otherRepos`, public attribute `rootPath`"
+    }
+  ]
+}
