@@ -2,7 +2,7 @@
 //! root); every query re-syncs the file from disk first, so edits made by the
 //! host's native tools never leave a stale buffer behind.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -51,6 +51,63 @@ impl LspManager {
     }
 }
 
+#[derive(Default)]
+struct ProgressState {
+    active_tokens: HashSet<String>,
+    saw_progress: bool,
+    server_busy: bool,
+    ready: bool,
+}
+
+impl ProgressState {
+    fn on_create(&mut self, token: Option<&Value>) {
+        self.saw_progress = true;
+        if let Some(key) = token_key(token) {
+            self.active_tokens.insert(key);
+        }
+        self.ready = false;
+    }
+
+    fn on_progress(&mut self, token: Option<&Value>, kind: Option<&str>) {
+        self.saw_progress = true;
+        match kind {
+            Some("begin") => {
+                if let Some(key) = token_key(token) {
+                    self.active_tokens.insert(key);
+                }
+                self.ready = false;
+            }
+            Some("end") => {
+                if let Some(key) = token_key(token) {
+                    self.active_tokens.remove(&key);
+                }
+                if self.active_tokens.is_empty() && !self.server_busy {
+                    self.ready = true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn on_ready_signal(&mut self, is_ready: bool) {
+        self.saw_progress = true;
+        self.server_busy = !is_ready;
+        self.ready = is_ready && self.active_tokens.is_empty();
+    }
+
+    fn is_done(&self) -> bool {
+        self.ready && !self.server_busy && self.active_tokens.is_empty()
+    }
+}
+
+fn token_key(value: Option<&Value>) -> Option<String> {
+    match value? {
+        Value::String(text) => Some(text.clone()),
+        Value::Number(number) => Some(number.to_string()),
+        _ => None,
+    }
+}
+
 pub struct LspClient {
     child: Mutex<Child>,
     stdin: Arc<Mutex<ChildStdin>>,
@@ -59,13 +116,14 @@ pub struct LspClient {
     opened: Mutex<HashMap<PathBuf, FileState>>,
     next_id: AtomicI64,
     settled: AtomicBool,
-    ready: Arc<AtomicBool>,
+    supports_pull_diagnostics: AtomicBool,
+    progress: Arc<Mutex<ProgressState>>,
     alive: Arc<AtomicBool>,
     root: PathBuf,
     language: Lang,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Location {
     pub file: String,
     pub line: u32,
@@ -75,7 +133,7 @@ pub struct Location {
     pub preview: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Diagnostic {
     pub line: u32,
     pub column: u32,
@@ -105,13 +163,13 @@ impl LspClient {
         let pending: Pending = Arc::new(Mutex::new(HashMap::new()));
         let diagnostics: DiagnosticsStore = Arc::new(Mutex::new(HashMap::new()));
         let writer = Arc::new(Mutex::new(stdin));
-        let ready = Arc::new(AtomicBool::new(false));
+        let progress = Arc::new(Mutex::new(ProgressState::default()));
         let alive = Arc::new(AtomicBool::new(true));
 
         let reader_pending = Arc::clone(&pending);
         let reader_diagnostics = Arc::clone(&diagnostics);
         let reader_writer = Arc::clone(&writer);
-        let reader_ready = Arc::clone(&ready);
+        let reader_progress = Arc::clone(&progress);
         let reader_alive = Arc::clone(&alive);
         std::thread::spawn(move || {
             reader_loop(
@@ -119,7 +177,7 @@ impl LspClient {
                 reader_pending,
                 reader_diagnostics,
                 reader_writer,
-                reader_ready,
+                reader_progress,
                 reader_alive,
             )
         });
@@ -132,7 +190,8 @@ impl LspClient {
             opened: Mutex::new(HashMap::new()),
             next_id: AtomicI64::new(1),
             settled: AtomicBool::new(false),
-            ready,
+            supports_pull_diagnostics: AtomicBool::new(true),
+            progress,
             alive,
             root: root.to_path_buf(),
             language,
@@ -156,6 +215,7 @@ impl LspClient {
                 "name": self.root.file_name().and_then(|name| name.to_str()).unwrap_or("workspace")
             }],
             "capabilities": {
+                "window": {"workDoneProgress": true},
                 "workspace": {"workspaceEdit": {"documentChanges": true}, "workspaceFolders": true},
                 "textDocument": {
                     "synchronization": {"didSave": false, "dynamicRegistration": false},
@@ -285,24 +345,37 @@ impl LspClient {
         Ok(fresh)
     }
 
-    /// shortcut: language servers index the project asynchronously after the first
-    /// didOpen. One settle per client keeps cross-file rename/references correct.
-    /// Upgrade to a server project-load notification if large repos stay incomplete.
+    /// Wait for initial workspace indexing using server progress/status notifications
+    /// when reported, falling back to a bounded wait for servers without progress.
     fn settle(&self) {
         if self.settled.swap(true, Ordering::SeqCst) {
             return;
         }
-        if matches!(self.language, Lang::Rust | Lang::Lean) {
-            // rust-analyzer and Lean report quiescence/fileProgress; wait for readiness instead of a fixed sleep.
-            let deadline = Instant::now() + Duration::from_secs(8);
-            while !self.ready.load(Ordering::SeqCst) && Instant::now() < deadline {
-                std::thread::sleep(Duration::from_millis(100));
-            }
-            if !self.ready.load(Ordering::SeqCst) {
-                std::thread::sleep(Duration::from_millis(500));
-            }
+        let started = Instant::now();
+        let max_wait = Duration::from_secs(8);
+        let fallback_wait = if matches!(self.language, Lang::Rust | Lang::Lean) {
+            Duration::from_secs(8)
         } else {
-            std::thread::sleep(Duration::from_millis(2000));
+            Duration::from_millis(1500)
+        };
+        while self.is_alive() {
+            let (done, saw_progress) = self
+                .progress
+                .lock()
+                .map(|state| (state.is_done(), state.saw_progress))
+                .unwrap_or((true, false));
+            if done {
+                return;
+            }
+            let limit = if saw_progress {
+                max_wait
+            } else {
+                fallback_wait
+            };
+            if started.elapsed() >= limit {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(25));
         }
     }
 
@@ -345,6 +418,36 @@ impl LspClient {
         Ok(items.iter().filter_map(location_from_value).collect())
     }
 
+    fn pull_diagnostics(&self, uri: &str) -> Vec<Diagnostic> {
+        if !self.supports_pull_diagnostics.load(Ordering::SeqCst) {
+            return Vec::new();
+        }
+        match self.request(
+            "textDocument/diagnostic",
+            json!({"textDocument": {"uri": uri}}),
+            Duration::from_secs(10),
+        ) {
+            Ok(value) => value
+                .get("items")
+                .and_then(Value::as_array)
+                .map(|items| items.iter().filter_map(diagnostic_from_value).collect())
+                .unwrap_or_default(),
+            Err(error) => {
+                let lower = error.to_ascii_lowercase();
+                if lower.contains("-32601")
+                    || lower.contains("methodnotfound")
+                    || lower.contains("method not found")
+                    || lower.contains("unhandled method")
+                    || lower.contains("not supported")
+                {
+                    self.supports_pull_diagnostics
+                        .store(false, Ordering::SeqCst);
+                }
+                Vec::new()
+            }
+        }
+    }
+
     pub fn diagnostics(&self, path: &Path) -> Result<Vec<Diagnostic>, String> {
         self.ensure_open(path)?;
         let uri = file_uri(path)?;
@@ -366,19 +469,63 @@ impl LspClient {
             std::thread::sleep(Duration::from_millis(50));
         }
 
-        // Servers with pull diagnostics answer this; others return MethodNotFound.
-        match self.request(
-            "textDocument/diagnostic",
-            json!({"textDocument": {"uri": uri}}),
-            Duration::from_secs(10),
-        ) {
-            Ok(value) => Ok(value
-                .get("items")
-                .and_then(Value::as_array)
-                .map(|items| items.iter().filter_map(diagnostic_from_value).collect())
-                .unwrap_or_default()),
-            Err(_) => Ok(Vec::new()),
+        Ok(self.pull_diagnostics(&uri))
+    }
+
+    /// Collect diagnostics across a batch of workspace files using one shared wait.
+    pub fn project_diagnostics(
+        &self,
+        files: &[PathBuf],
+    ) -> Result<Vec<(PathBuf, Vec<Diagnostic>)>, String> {
+        let mut opened_uris = Vec::with_capacity(files.len());
+        for path in files {
+            let canon = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+            match self.ensure_open(&canon) {
+                Ok(_) => {}
+                Err(error)
+                    if error.starts_with("cannot read ") || error.starts_with("cannot stat ") =>
+                {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            }
+            let uri = file_uri(&canon)?;
+            opened_uris.push((canon, uri));
         }
+        if opened_uris.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.settle();
+
+        let deadline = Instant::now() + Duration::from_millis(2000);
+        while self.is_alive() && Instant::now() < deadline {
+            let done = {
+                let map = self
+                    .diagnostics
+                    .lock()
+                    .map_err(|_| "diagnostics map poisoned")?;
+                opened_uris.iter().all(|(_, uri)| map.contains_key(uri))
+            };
+            if done {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        let snapshot = self
+            .diagnostics
+            .lock()
+            .map_err(|_| "diagnostics map poisoned")?
+            .clone();
+        let mut out = Vec::with_capacity(opened_uris.len());
+        for (path, uri) in opened_uris {
+            let items = match snapshot.get(&uri) {
+                Some(raw) => raw.iter().filter_map(diagnostic_from_value).collect(),
+                None => self.pull_diagnostics(&uri),
+            };
+            out.push((path, items));
+        }
+        Ok(out)
     }
 
     /// Apply an LSP rename and return `(file, unified diff)` for every file touched.
@@ -579,7 +726,7 @@ fn reader_loop(
     pending: Pending,
     diagnostics: DiagnosticsStore,
     writer: Arc<Mutex<ChildStdin>>,
-    ready: Arc<AtomicBool>,
+    progress: Arc<Mutex<ProgressState>>,
     alive: Arc<AtomicBool>,
 ) {
     let mut reader = BufReader::new(stdout);
@@ -628,6 +775,12 @@ fn reader_loop(
         let method = message.get("method").and_then(Value::as_str);
         match (id, method) {
             (Some(id), Some(method)) => {
+                if method == "window/workDoneProgress/create"
+                    && let Ok(mut state) = progress.lock()
+                {
+                    let token = message.get("params").and_then(|params| params.get("token"));
+                    state.on_create(token);
+                }
                 let result = if method == "workspace/configuration" {
                     let count = message
                         .get("params")
@@ -657,34 +810,49 @@ fn reader_loop(
                 }
             }
             (None, Some("experimental/serverStatus")) => {
-                if message
+                if let Some(quiescent) = message
                     .get("params")
                     .and_then(|params| params.get("quiescent"))
                     .and_then(Value::as_bool)
-                    == Some(true)
+                    && let Ok(mut state) = progress.lock()
                 {
-                    ready.store(true, Ordering::SeqCst);
+                    state.on_ready_signal(quiescent);
                 }
             }
             (None, Some("$/lean/fileProgress")) => {
-                if message
+                if let Some(processing) = message
                     .get("params")
                     .and_then(|params| params.get("processing"))
                     .and_then(Value::as_array)
-                    .is_some_and(Vec::is_empty)
+                    && let Ok(mut state) = progress.lock()
                 {
-                    ready.store(true, Ordering::SeqCst);
+                    state.on_ready_signal(processing.is_empty());
                 }
             }
             (None, Some("$/progress")) => {
-                if message
-                    .get("params")
-                    .and_then(|params| params.get("value"))
-                    .and_then(|value| value.get("kind"))
-                    .and_then(Value::as_str)
-                    == Some("end")
+                if let Some(params) = message.get("params")
+                    && let Ok(mut state) = progress.lock()
                 {
-                    ready.store(true, Ordering::SeqCst);
+                    let token = params.get("token");
+                    let kind = params
+                        .get("value")
+                        .and_then(|value| value.get("kind"))
+                        .and_then(Value::as_str);
+                    state.on_progress(token, kind);
+                }
+            }
+            (None, Some("language/status")) => {
+                if let Some(kind) = message
+                    .get("params")
+                    .and_then(|params| params.get("type"))
+                    .and_then(Value::as_str)
+                    && let Ok(mut state) = progress.lock()
+                {
+                    match kind {
+                        "ServiceReady" | "Started" => state.on_ready_signal(true),
+                        "Starting" => state.on_ready_signal(false),
+                        _ => {}
+                    }
                 }
             }
             (None, Some("textDocument/publishDiagnostics")) => {
@@ -928,5 +1096,273 @@ while True:
             started.elapsed()
         );
         assert!(err.contains("exited") || err.contains("closed"), "{err}");
+    }
+
+    #[test]
+    fn settle_waits_for_all_progress_tokens_then_returns_promptly() {
+        let root = std::env::temp_dir().join(format!("astlens-lsp-prog-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let file = root.join("main.py");
+        std::fs::write(&file, "x = 1\n").unwrap();
+        let script = r#"
+import json, sys, threading, time
+def read_msg():
+    n = 0
+    while True:
+        line = sys.stdin.buffer.readline()
+        if not line: return None
+        s = line.decode().strip()
+        if not s: break
+        if s.lower().startswith("content-length:"): n = int(s.split(":", 1)[1])
+    return json.loads(sys.stdin.buffer.read(n))
+def send_msg(obj):
+    b = json.dumps(obj).encode()
+    sys.stdout.buffer.write(f"Content-Length: {len(b)}\r\n\r\n".encode() + b)
+    sys.stdout.buffer.flush()
+while True:
+    m = read_msg()
+    if m is None: break
+    method = m.get("method")
+    if method == "initialize":
+        done_event = threading.Event()
+        caps = m["params"]["capabilities"]
+        ok = caps.get("window", {}).get("workDoneProgress") is True
+        if not ok:
+            send_msg({"jsonrpc": "2.0", "id": m["id"], "error": {"code": -32602, "message": "missing workDoneProgress"}})
+        else:
+            send_msg({"jsonrpc": "2.0", "id": m["id"], "result": {"capabilities": {}}})
+    elif method == "initialized":
+        send_msg({"jsonrpc": "2.0", "id": 101, "method": "window/workDoneProgress/create", "params": {"token": "t1"}})
+        send_msg({"jsonrpc": "2.0", "id": 102, "method": "window/workDoneProgress/create", "params": {"token": "t2"}})
+    elif method == "textDocument/didOpen":
+        def finish():
+            time.sleep(0.1)
+            send_msg({"jsonrpc": "2.0", "method": "$/progress", "params": {"token": "t1", "value": {"kind": "end"}}})
+            time.sleep(0.25)
+            done_event.set()
+            send_msg({"jsonrpc": "2.0", "method": "$/progress", "params": {"token": "t2", "value": {"kind": "end"}}})
+        threading.Thread(target=finish, daemon=True).start()
+    elif method == "textDocument/references":
+        if not done_event.is_set():
+            send_msg({"jsonrpc": "2.0", "id": m["id"], "error": {"code": -32000, "message": "queried before t2 finished"}})
+        else:
+            send_msg({"jsonrpc": "2.0", "id": m["id"], "result": []})
+    elif method == "shutdown":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": None})
+        break
+"#;
+        let client = spawn_mock_lsp("mock_prog.py", script, &root);
+        let started = Instant::now();
+        let locs = client.references(&file, 0, 0, "references", true).unwrap();
+        let elapsed = started.elapsed();
+        assert!(locs.is_empty());
+        assert!(
+            elapsed >= Duration::from_millis(300) && elapsed < Duration::from_millis(1200),
+            "unexpected settle duration: {elapsed:?}"
+        );
+    }
+
+    #[test]
+    fn project_diagnostics_collects_batch_with_shared_wait() {
+        let root = std::env::temp_dir().join(format!("astlens-lsp-proj-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let a = root.join("a.py");
+        let b = root.join("b.py");
+        std::fs::write(&a, "x = bad()\n").unwrap();
+        std::fs::write(&b, "y = 1\n").unwrap();
+        let script = r#"
+import json, sys
+def read_msg():
+    n = 0
+    while True:
+        line = sys.stdin.buffer.readline()
+        if not line: return None
+        s = line.decode().strip()
+        if not s: break
+        if s.lower().startswith("content-length:"): n = int(s.split(":", 1)[1])
+    return json.loads(sys.stdin.buffer.read(n))
+def send_msg(obj):
+    b = json.dumps(obj).encode()
+    sys.stdout.buffer.write(f"Content-Length: {len(b)}\r\n\r\n".encode() + b)
+    sys.stdout.buffer.flush()
+while True:
+    m = read_msg()
+    if m is None: break
+    method = m.get("method")
+    if method == "initialize":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": {"capabilities": {}}})
+    elif method == "initialized":
+        send_msg({"jsonrpc": "2.0", "method": "$/progress", "params": {"token": "init", "value": {"kind": "end"}}})
+    elif method == "textDocument/didOpen":
+        uri = m["params"]["textDocument"]["uri"]
+        diags = []
+        if uri.endswith("a.py"):
+            diags = [{"range": {"start": {"line": 0, "character": 4}, "end": {"line": 0, "character": 7}}, "severity": 1, "message": "bad ref"}]
+        send_msg({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"uri": uri, "diagnostics": diags}})
+    elif method == "shutdown":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": None})
+        break
+"#;
+        let client = spawn_mock_lsp("mock_proj.py", script, &root);
+        let started = Instant::now();
+        let results = client.project_diagnostics(&[a.clone(), b.clone()]).unwrap();
+        assert!(started.elapsed() < Duration::from_millis(1200));
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].1.len(), 1);
+        assert_eq!(results[0].1[0].message, "bad ref");
+        assert!(results[1].1.is_empty());
+    }
+
+    #[test]
+    fn settle_waits_for_server_status_even_after_progress_token_ends() {
+        let root =
+            std::env::temp_dir().join(format!("astlens-lsp-quiescent-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let file = root.join("main.py");
+        std::fs::write(&file, "x = 1\n").unwrap();
+        let script = r#"
+import json, sys, threading, time
+def read_msg():
+    n = 0
+    while True:
+        line = sys.stdin.buffer.readline()
+        if not line: return None
+        s = line.decode().strip()
+        if not s: break
+        if s.lower().startswith("content-length:"): n = int(s.split(":", 1)[1])
+    return json.loads(sys.stdin.buffer.read(n))
+def send_msg(obj):
+    b = json.dumps(obj).encode()
+    sys.stdout.buffer.write(f"Content-Length: {len(b)}\r\n\r\n".encode() + b)
+    sys.stdout.buffer.flush()
+quiescent_event = threading.Event()
+while True:
+    m = read_msg()
+    if m is None: break
+    method = m.get("method")
+    if method == "initialize":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": {"capabilities": {}}})
+    elif method == "initialized":
+        send_msg({"jsonrpc": "2.0", "method": "experimental/serverStatus", "params": {"quiescent": False}})
+        send_msg({"jsonrpc": "2.0", "method": "$/progress", "params": {"token": "t1", "value": {"kind": "begin"}}})
+    elif method == "textDocument/didOpen":
+        def finish():
+            time.sleep(0.08)
+            send_msg({"jsonrpc": "2.0", "method": "$/progress", "params": {"token": "t1", "value": {"kind": "end"}}})
+            time.sleep(0.25)
+            quiescent_event.set()
+            send_msg({"jsonrpc": "2.0", "method": "experimental/serverStatus", "params": {"quiescent": True}})
+        threading.Thread(target=finish, daemon=True).start()
+    elif method == "textDocument/references":
+        if not quiescent_event.is_set():
+            send_msg({"jsonrpc": "2.0", "id": m["id"], "error": {"code": -32000, "message": "queried before quiescent"}})
+        else:
+            send_msg({"jsonrpc": "2.0", "id": m["id"], "result": []})
+    elif method == "shutdown":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": None})
+        break
+"#;
+        let client = spawn_mock_lsp("mock_quiescent.py", script, &root);
+        let started = Instant::now();
+        let locs = client.references(&file, 0, 0, "references", true).unwrap();
+        assert!(locs.is_empty());
+        assert!(
+            started.elapsed() >= Duration::from_millis(300),
+            "returned too early: {:?}",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn project_diagnostics_falls_back_to_pull_and_caches_unsupported() {
+        let root = std::env::temp_dir().join(format!("astlens-lsp-pull-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let a = root.join("a.py");
+        let b = root.join("b.py");
+        std::fs::write(&a, "a = 1\n").unwrap();
+        std::fs::write(&b, "b = 2\n").unwrap();
+
+        let pull_script = r#"
+import json, sys
+def read_msg():
+    n = 0
+    while True:
+        line = sys.stdin.buffer.readline()
+        if not line: return None
+        s = line.decode().strip()
+        if not s: break
+        if s.lower().startswith("content-length:"): n = int(s.split(":", 1)[1])
+    return json.loads(sys.stdin.buffer.read(n))
+def send_msg(obj):
+    b = json.dumps(obj).encode()
+    sys.stdout.buffer.write(f"Content-Length: {len(b)}\r\n\r\n".encode() + b)
+    sys.stdout.buffer.flush()
+while True:
+    m = read_msg()
+    if m is None: break
+    method = m.get("method")
+    if method == "initialize":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": {"capabilities": {}}})
+    elif method == "initialized":
+        send_msg({"jsonrpc": "2.0", "method": "$/progress", "params": {"token": "init", "value": {"kind": "end"}}})
+    elif method == "textDocument/didOpen":
+        uri = m["params"]["textDocument"]["uri"]
+        if uri.endswith("a.py"):
+            send_msg({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"uri": uri, "diagnostics": []}})
+    elif method == "textDocument/diagnostic":
+        uri = m["params"]["textDocument"]["uri"]
+        items = [{"range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 1}}, "severity": 2, "message": "pull warn"}] if uri.endswith("b.py") else []
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": {"kind": "full", "items": items}})
+    elif method == "shutdown":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": None})
+        break
+"#;
+        let client = spawn_mock_lsp("mock_pull.py", pull_script, &root);
+        let results = client.project_diagnostics(&[a.clone(), b.clone()]).unwrap();
+        assert!(results[0].1.is_empty());
+        assert_eq!(results[1].1.len(), 1);
+        assert_eq!(results[1].1[0].message, "pull warn");
+        drop(client);
+
+        let unsupported_script = r#"
+import json, sys
+def read_msg():
+    n = 0
+    while True:
+        line = sys.stdin.buffer.readline()
+        if not line: return None
+        s = line.decode().strip()
+        if not s: break
+        if s.lower().startswith("content-length:"): n = int(s.split(":", 1)[1])
+    return json.loads(sys.stdin.buffer.read(n))
+def send_msg(obj):
+    b = json.dumps(obj).encode()
+    sys.stdout.buffer.write(f"Content-Length: {len(b)}\r\n\r\n".encode() + b)
+    sys.stdout.buffer.flush()
+pull_calls = 0
+while True:
+    m = read_msg()
+    if m is None: break
+    method = m.get("method")
+    if method == "initialize":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": {"capabilities": {}}})
+    elif method == "initialized":
+        send_msg({"jsonrpc": "2.0", "method": "$/progress", "params": {"token": "init", "value": {"kind": "end"}}})
+    elif method == "textDocument/diagnostic":
+        pull_calls += 1
+        if pull_calls > 1:
+            send_msg({"jsonrpc": "2.0", "id": m["id"], "result": {"items": [{"range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 1}}, "severity": 1, "message": "should not pull twice"}]}})
+        else:
+            send_msg({"jsonrpc": "2.0", "id": m["id"], "error": {"code": -32000, "message": "method not found"}})
+    elif method == "shutdown":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": None})
+        break
+"#;
+        let client2 = spawn_mock_lsp("mock_no_pull.py", unsupported_script, &root);
+        let res2 = client2.project_diagnostics(&[a, b]).unwrap();
+        assert!(res2[0].1.is_empty());
+        assert!(res2[1].1.is_empty());
     }
 }

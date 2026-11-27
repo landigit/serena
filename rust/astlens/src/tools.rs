@@ -1,6 +1,7 @@
 //! The five tools. Every call is stateless and derives its workspace from the
 //! file path, so parallel worktrees and subagents never collide.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -74,11 +75,13 @@ pub fn list() -> Value {
         },
         {
             "name": "diagnostics",
-            "description": "Compiler/linter diagnostics for one file via the language server, without running a full build. Re-syncs from disk first.",
+            "description": "Compiler/linter diagnostics via the language server without running a full build. Supports single-file (default) or project-wide scope with an ignore-aware file cap. Re-syncs from disk first.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "file": {"type": "string", "description": "Path to the source file"},
+                    "file": {"type": "string", "description": "Path to a source file (or project directory for scope='project')"},
+                    "scope": {"type": "string", "enum": ["file", "project"], "description": "Default 'file' for a file path, or 'project' for a directory"},
+                    "max_files": {"type": "integer", "minimum": 1, "maximum": 500, "description": "Maximum files to scan when scope='project' (default 50)"},
                     "min_severity": {"type": "string", "enum": ["error", "warning", "info", "hint", "all"], "description": "Default warning"},
                     "grouped": {"type": "boolean", "description": "Group diagnostics by severity and owning symbol name_path (default false)"}
                 },
@@ -368,14 +371,20 @@ fn edit_symbol(arguments: &Value, manager: &Arc<LspManager>) -> Result<String, S
 
 fn diagnostics(arguments: &Value, manager: &Arc<LspManager>) -> Result<String, String> {
     let path = path_argument(arguments, "file")?;
+    if !path.exists() {
+        return Err(format!("path does not exist: {}", path.display()));
+    }
+    let scope = match arguments.get("scope").and_then(Value::as_str) {
+        Some(value @ ("file" | "project")) => value,
+        Some(other) => return Err(format!("unknown scope '{other}'")),
+        None if path.is_dir() => "project",
+        None => "file",
+    };
     let min_severity = arguments
         .get("min_severity")
         .and_then(Value::as_str)
         .unwrap_or("warning");
-    let grouped = arguments
-        .get("grouped")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
+    let grouped = bool_argument(arguments, "grouped", false);
     let allowed: &[&str] = match min_severity {
         "error" => &["error"],
         "warning" => &["error", "warning"],
@@ -383,6 +392,18 @@ fn diagnostics(arguments: &Value, manager: &Arc<LspManager>) -> Result<String, S
         "hint" | "all" => &["error", "warning", "info", "hint", "unknown"],
         other => return Err(format!("unknown min_severity '{other}'")),
     };
+    if scope == "project" {
+        let max_files = number_argument(arguments, "max_files")
+            .unwrap_or(50)
+            .clamp(1, 500) as usize;
+        return project_diagnostics(&path, min_severity, allowed, grouped, max_files, manager);
+    }
+    if path.is_dir() {
+        return Err(format!(
+            "{} is a directory; pass scope='project' for project-wide diagnostics",
+            path.display()
+        ));
+    }
     let client = manager.client_for(&path)?;
     let mut diagnostics: Vec<_> = client
         .diagnostics(&path)?
@@ -407,6 +428,163 @@ fn diagnostics(arguments: &Value, manager: &Arc<LspManager>) -> Result<String, S
             "count": total,
             "truncated": total > diagnostics.len(),
             "diagnostics": diagnostics
+        })
+    };
+    serde_json::to_string_pretty(&text).map_err(|error| error.to_string())
+}
+
+fn project_diagnostics(
+    path: &Path,
+    min_severity: &str,
+    allowed: &[&str],
+    grouped: bool,
+    max_files: usize,
+    manager: &Arc<LspManager>,
+) -> Result<String, String> {
+    let (root, lang_filter, priority_file) = if path.is_dir() {
+        (path.to_path_buf(), None, None)
+    } else {
+        let lang = ts::Lang::from_path(path)
+            .ok_or_else(|| format!("unsupported file type: {}", path.display()))?;
+        (
+            crate::roots::workspace_root(path, lang),
+            Some(lang),
+            Some(path),
+        )
+    };
+    let (files, files_capped) =
+        crate::roots::discover_project_files(&root, lang_filter, priority_file, max_files);
+    let files_scanned = files.len();
+
+    let mut by_client: HashMap<(ts::Lang, PathBuf), Vec<PathBuf>> = HashMap::new();
+    let mut client_order = Vec::new();
+    for file in files {
+        if let Some(lang) = ts::Lang::from_path(&file) {
+            let key = (lang, crate::roots::workspace_root(&file, lang));
+            if !by_client.contains_key(&key) {
+                client_order.push(key.clone());
+            }
+            by_client.entry(key).or_default().push(file);
+        }
+    }
+
+    let mut per_file: Vec<(PathBuf, crate::lsp::Diagnostic)> = Vec::new();
+    let mut last_error: Option<String> = None;
+    let mut succeeded_any = false;
+    for key in client_order {
+        let Some(client_files) = by_client.get(&key) else {
+            continue;
+        };
+        let client = match manager.client_for(&client_files[0]) {
+            Ok(client) => client,
+            Err(error) => {
+                if lang_filter.is_some() {
+                    return Err(error);
+                }
+                last_error = Some(error);
+                continue;
+            }
+        };
+        let batch = match client.project_diagnostics(client_files) {
+            Ok(batch) => batch,
+            Err(error) => {
+                if lang_filter.is_some() {
+                    return Err(error);
+                }
+                last_error = Some(error);
+                continue;
+            }
+        };
+        succeeded_any = true;
+        for (file, file_diags) in batch {
+            for diag in file_diags {
+                if allowed.contains(&diag.severity.as_str()) {
+                    per_file.push((file.clone(), diag));
+                }
+            }
+        }
+    }
+    if files_scanned > 0
+        && !succeeded_any
+        && let Some(error) = last_error
+    {
+        return Err(error);
+    }
+
+    render_project_diagnostics(
+        &root,
+        min_severity,
+        files_scanned,
+        files_capped,
+        grouped,
+        per_file,
+    )
+}
+
+fn render_project_diagnostics(
+    root: &Path,
+    min_severity: &str,
+    files_scanned: usize,
+    files_capped: bool,
+    grouped: bool,
+    mut per_file: Vec<(PathBuf, crate::lsp::Diagnostic)>,
+) -> Result<String, String> {
+    per_file.sort_by(|(fa, da), (fb, db)| {
+        (fa, da.line, da.column, &da.message).cmp(&(fb, db.line, db.column, &db.message))
+    });
+    let total = per_file.len();
+    per_file.truncate(500);
+    let truncated = total > per_file.len();
+
+    let text = if grouped {
+        let mut grouped_by_file: HashMap<PathBuf, Vec<crate::lsp::Diagnostic>> = HashMap::new();
+        let mut file_order = Vec::new();
+        for (file, diag) in per_file {
+            if !grouped_by_file.contains_key(&file) {
+                file_order.push(file.clone());
+            }
+            grouped_by_file.entry(file).or_default().push(diag);
+        }
+        let mut merged = serde_json::Map::new();
+        for file in file_order {
+            if let Some(diags) = grouped_by_file.get(&file)
+                && let Value::Object(map) = group_diagnostics(&file, diags)?
+            {
+                for (key, value) in map {
+                    merged.insert(key, value);
+                }
+            }
+        }
+        json!({
+            "scope": "project",
+            "root": root.display().to_string(),
+            "min_severity": min_severity,
+            "files_scanned": files_scanned,
+            "files_capped": files_capped,
+            "count": total,
+            "truncated": truncated,
+            "grouped": Value::Object(merged)
+        })
+    } else {
+        let items: Vec<Value> = per_file
+            .into_iter()
+            .map(|(file, diag)| {
+                let mut entry = serde_json::to_value(&diag).unwrap_or_else(|_| json!({}));
+                if let Some(obj) = entry.as_object_mut() {
+                    obj.insert("file".to_string(), json!(file.display().to_string()));
+                }
+                entry
+            })
+            .collect();
+        json!({
+            "scope": "project",
+            "root": root.display().to_string(),
+            "min_severity": min_severity,
+            "files_scanned": files_scanned,
+            "files_capped": files_capped,
+            "count": total,
+            "truncated": truncated,
+            "diagnostics": items
         })
     };
     serde_json::to_string_pretty(&text).map_err(|error| error.to_string())
@@ -538,5 +716,150 @@ mod tests {
         )
         .unwrap_err();
         assert!(err_kind.contains("unknown kind"), "{err_kind}");
+
+        let err_scope = run(
+            "diagnostics",
+            &json!({"file": path, "scope": "bogus"}),
+            &manager,
+        )
+        .unwrap_err();
+        assert!(err_scope.contains("unknown scope"), "{err_scope}");
+
+        let err_dir_file_scope = run(
+            "diagnostics",
+            &json!({"file": dir, "scope": "file"}),
+            &manager,
+        )
+        .unwrap_err();
+        assert!(
+            err_dir_file_scope.contains("is a directory"),
+            "{err_dir_file_scope}"
+        );
+    }
+
+    #[test]
+    fn empty_project_diagnostics_returns_clean_summary() {
+        let dir = std::env::temp_dir().join(format!("astlens-tools-empty-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let manager = Arc::new(LspManager::new());
+
+        let out = run(
+            "diagnostics",
+            &json!({"file": dir, "scope": "project", "grouped": true}),
+            &manager,
+        )
+        .unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["scope"], "project");
+        assert_eq!(parsed["files_scanned"], 0);
+        assert_eq!(parsed["files_capped"], false);
+        assert_eq!(parsed["count"], 0);
+        assert_eq!(parsed["grouped"], json!({}));
+    }
+
+    #[test]
+    fn groups_diagnostics_under_overloaded_owner_symbol() {
+        let dir = std::env::temp_dir().join(format!("astlens-tools-ovl-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("Sample.java");
+        std::fs::write(
+            &path,
+            "class Store {\n  int add(int a) { return a; }\n  double add(double a) { return a; }\n}\n",
+        )
+        .unwrap();
+        let diagnostics = vec![Diagnostic {
+            line: 3,
+            column: 10,
+            end_line: 3,
+            end_column: 13,
+            severity: "error".to_string(),
+            message: "bad overload".to_string(),
+            code: None,
+            source: Some("jdtls".to_string()),
+        }];
+        let grouped = group_diagnostics(&path, &diagnostics).unwrap();
+        let file_key = path.display().to_string();
+        assert_eq!(
+            grouped[&file_key]["Error"]["Store/add[1]"][0]["message"],
+            "bad overload"
+        );
+    }
+
+    #[test]
+    fn diagnostics_rejects_nonexistent_path_and_renders_multifile_project_output() {
+        let dir = std::env::temp_dir().join(format!("astlens-tools-proj-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let manager = Arc::new(LspManager::new());
+
+        let missing = dir.join("missing_dir");
+        let err = run(
+            "diagnostics",
+            &json!({"file": missing, "scope": "project"}),
+            &manager,
+        )
+        .unwrap_err();
+        assert!(err.contains("path does not exist"), "{err}");
+
+        let a = dir.join("A.java");
+        let b = dir.join("B.java");
+        std::fs::write(
+            &a,
+            "class A {\n  void m(int x) {}\n  void m(String x) {}\n}\n",
+        )
+        .unwrap();
+        std::fs::write(&b, "class B {\n  void go() {}\n}\n").unwrap();
+
+        let diags = vec![
+            (
+                b.clone(),
+                Diagnostic {
+                    line: 2,
+                    column: 3,
+                    end_line: 2,
+                    end_column: 5,
+                    severity: "warning".to_string(),
+                    message: "b warn".to_string(),
+                    code: None,
+                    source: Some("jdtls".to_string()),
+                },
+            ),
+            (
+                a.clone(),
+                Diagnostic {
+                    line: 3,
+                    column: 3,
+                    end_line: 3,
+                    end_column: 5,
+                    severity: "error".to_string(),
+                    message: "a err".to_string(),
+                    code: None,
+                    source: Some("jdtls".to_string()),
+                },
+            ),
+        ];
+
+        let flat: Value = serde_json::from_str(
+            &render_project_diagnostics(&dir, "warning", 2, true, false, diags.clone()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(flat["files_capped"], true);
+        assert_eq!(flat["count"], 2);
+        assert_eq!(flat["diagnostics"][0]["file"], a.display().to_string());
+        assert_eq!(flat["diagnostics"][1]["file"], b.display().to_string());
+
+        let grouped_out: Value = serde_json::from_str(
+            &render_project_diagnostics(&dir, "warning", 2, false, true, diags).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            grouped_out["grouped"][a.display().to_string()]["Error"]["A/m[1]"][0]["message"],
+            "a err"
+        );
+        assert_eq!(
+            grouped_out["grouped"][b.display().to_string()]["Warning"]["B/go"][0]["message"],
+            "b warn"
+        );
     }
 }
