@@ -1,12 +1,16 @@
 # Port map: serena
 
-1 of 23 units have a Rust port; no original changed since it was recorded.
+5 of 24 units have a Rust port; no original changed since it was recorded.
 
 ## Ports
 
 | Unit | Crate | In Rust | Kept in the original | Cases | Last diff | Original |
 | --- | --- | --- | --- | ---: | ---: | --- |
+| `repo_dir_sync.py` | `rust/repo-dir-sync-rs` | `popen`, `call`, `execute`, `gitLog`, `gitCommit`, `gitCommitWithMessageFromFile` | `OtherRepo`, `LibRepo` | 144 | not run | unchanged |
+| `rust/oracle/diagnostics_group.py` | `rust/diagnostics-group-rs` | `severity_name`, `diagnostic_output`, `group` | - | 92 | 92/92 | unchanged |
 | `rust/oracle/name_path.py` | `rust/name-path` | `match_name_path`, `pattern_components` | - | 464 | 464/464 | unchanged |
+| `src/interprompt/` | `rust/interprompt-rs` | `autogenerate_prompt_factory_module`, `ParameterizedTemplateInterface` | `JinjaTemplate`, `PromptTemplate`, `PromptList`, `LanguageFallbackMode`, `MultiLangPromptTemplate`, `MultiLangPromptList`, `MultiLangPromptCollection`, `PromptFactoryBase` | 468 | not run | unchanged |
+| `src/serena/lsp/` | `rust/lsp-rs` | `GroupedDiagnostics`, `DiagnosticsDiff` | `LSPLanguageBackend`, `EditedFilePath`, `DiagnosticIdentity`, `PublishedDiagnosticsSnapshot`, `DiagnosticsContext` | 0 | not run | unchanged |
 
 ## Not ported yet
 
@@ -14,9 +18,6 @@ In the order `analyze` suggests.
 
 | Unit | Status | Lines | Exports | Readiness |
 | --- | --- | ---: | ---: | ---: |
-| `src/serena/lsp/` | ready | 276 | 7 | 74 |
-| `src/interprompt/` | ready | 425 | 10 | 73 |
-| `repo_dir_sync.py` | ready | 267 | 8 | 75 |
 | `src/serena/generated/` | caution | 62 | 1 | 93 |
 | `src/solidlsp/language_servers/elixir_tools/` | caution | 364 | 1 | 81 |
 | `src/serena/olb/` | caution | 54 | 1 | 94 |
@@ -37,7 +38,7 @@ In the order `analyze` suggests.
 | `src/solidlsp/lsp_protocol_handler/` | caution | 5013 | 360 | 0 |
 | `scripts/` | caution | 2113 | 46 | 0 |
 
-3 of these units have no port on purpose (3 blocked, 0 kept in the original), so 19 units are left to port:
+3 of these units have no port on purpose (3 blocked, 0 kept in the original), so 16 units are left to port:
 
 - `src/serena/repl/`: blocked, Uses dynamic code (eval, new Function or computed imports)
 - `src/serena/dashboard/`: blocked, `flask` has no Rust equivalent

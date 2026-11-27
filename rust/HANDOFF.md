@@ -4,24 +4,36 @@
 
 - Goal: standalone Rust MCP server (`astlens`) replacing Serena's semantic layer, packaged as an
   Antigravity plugin. Serena stays installed as the Python reference.
-- Gate so far: `rust-anything gate rust/name-path` → **passed** (464/464 recorded cases).
-- Binary: `rust/astlens` — 5 tools, tree-sitter outline, lazy per-worktree LSP, disk-truth resync.
-  Release binary in place at `~/.gemini/config/plugins/astlens/bin/astlens`; plugin validated by
-  `agy plugin validate --strict`.
-- Commits: `f5ba5641` (astlens + passing gate), `118e1038` (second bridge/record).
+- Gates passed:
+  - `rust-anything gate rust/name-path` → **passed** (464/464 recorded cases).
+  - `rust-anything gate rust/diagnostics-group-rs` → **passed** (92/92 recorded cases).
+- Binary: `rust/astlens` — 5 tools, tree-sitter outline, lazy per-worktree LSP, disk-truth resync,
+  and optional `grouped: true` diagnostics using `diagnostics-group-rs` + tree-sitter owner symbols.
+  `cargo test` 11/11 and `cargo clippy -D warnings` pass.
+  Release binary atomically updated at `~/.gemini/config/plugins/astlens/bin/astlens`.
+- Commits: `f5ba5641` (astlens + name-path gate), `118e1038` (lsp-rs/repo-dir-sync-rs),
+  `599290a0` / `6803f17e` (diagnostics-group-rs), plus current working tree completing the
+  `diagnostics-group-rs` gate, wiring it into `astlens`, and recording `interprompt-rs`.
 
 ## Next
 
-- Continue porting from the `rust-anything` plan order (`rust/MAP.md`, generated `rust/PORT_MAP.md`).
-- Blocked at record: `src/serena/lsp/` (driver module-loading failure).
-- Low-value unit surfaced: `repo_dir_sync.py` (bridge + record OK, 144 cases, mostly error paths).
+- Remaining `astlens` enhancements (`rust/MAP.md`): extra tree-sitter grammars (Ruby, PHP, C#, Kotlin),
+  project-load notification for non-Rust LSPs, project-wide `diagnostics` mode, overload-aware `name-path`.
+- Recorded-but-set-aside units (ADR-001):
+  - `rust/repo-dir-sync-rs`: 144 cases recorded (mostly git subprocess errors).
+  - `rust/interprompt-rs`: 468 cases recorded via `.venv/bin/python` (268 threw).
+- Blocked at record: `src/serena/lsp/` (`rust/lsp-rs`) hits a pre-existing circular import between
+  `serena.util.text_utils` and `solidlsp.ls` unless `serena.agent` is imported first; its pure
+  `GroupedDiagnostics` logic is already ported and gated in `rust/diagnostics-group-rs`.
 
 ## Commands to re-run
 
 ```sh
+export PATH="$PWD/.venv/bin:$HOME/.cargo/bin:$PATH"
 rust-anything gate rust/name-path
-rust-anything diff rust/name-path
-rust-anything build rust/astlens          # dev
+rust-anything gate rust/diagnostics-group-rs
+cargo test --manifest-path rust/astlens/Cargo.toml
+cargo clippy --manifest-path rust/astlens/Cargo.toml -- -D warnings
 cargo build --release --manifest-path rust/astlens/Cargo.toml
 rust-anything map . --write
 ```

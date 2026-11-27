@@ -79,7 +79,8 @@ pub fn list() -> Value {
                 "type": "object",
                 "properties": {
                     "file": {"type": "string", "description": "Path to the source file"},
-                    "min_severity": {"type": "string", "enum": ["error", "warning", "info", "hint", "all"], "description": "Default warning"}
+                    "min_severity": {"type": "string", "enum": ["error", "warning", "info", "hint", "all"], "description": "Default warning"},
+                    "grouped": {"type": "boolean", "description": "Group diagnostics by severity and owning symbol name_path (default false)"}
                 },
                 "required": ["file"]
             }
@@ -364,6 +365,10 @@ fn diagnostics(arguments: &Value, manager: &Arc<LspManager>) -> Result<String, S
         .get("min_severity")
         .and_then(Value::as_str)
         .unwrap_or("warning");
+    let grouped = arguments
+        .get("grouped")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let allowed: &[&str] = match min_severity {
         "error" => &["error"],
         "warning" => &["error", "warning"],
@@ -379,12 +384,108 @@ fn diagnostics(arguments: &Value, manager: &Arc<LspManager>) -> Result<String, S
         .collect();
     let total = diagnostics.len();
     diagnostics.truncate(500);
-    let text = json!({
-        "file": path.display().to_string(),
-        "min_severity": min_severity,
-        "count": total,
-        "truncated": total > diagnostics.len(),
-        "diagnostics": diagnostics
-    });
+    let text = if grouped {
+        let grouped_map = group_diagnostics(&path, &diagnostics)?;
+        json!({
+            "file": path.display().to_string(),
+            "min_severity": min_severity,
+            "count": total,
+            "truncated": total > diagnostics.len(),
+            "grouped": grouped_map
+        })
+    } else {
+        json!({
+            "file": path.display().to_string(),
+            "min_severity": min_severity,
+            "count": total,
+            "truncated": total > diagnostics.len(),
+            "diagnostics": diagnostics
+        })
+    };
     serde_json::to_string_pretty(&text).map_err(|error| error.to_string())
+}
+
+fn owner_name_path(symbols: &[ts::Symbol], line: usize) -> String {
+    ts::flatten(symbols)
+        .into_iter()
+        .filter(|symbol| symbol.line <= line && line <= symbol.end_line)
+        // Narrowest span wins, breaking ties in favor of deeper/later nested symbols.
+        .min_by_key(|symbol| (symbol.end_line - symbol.line, usize::MAX - symbol.line))
+        .map(|symbol| symbol.name_path.clone())
+        .unwrap_or_else(|| "<file>".to_string())
+}
+
+fn group_diagnostics(path: &Path, diagnostics: &[crate::lsp::Diagnostic]) -> Result<Value, String> {
+    let parsed = ts::parse(path).ok();
+    let file_key = path.display().to_string();
+    let entries: Vec<Value> = diagnostics
+        .iter()
+        .map(|diagnostic| {
+            let name_path = parsed
+                .as_ref()
+                .map(|parsed| owner_name_path(&parsed.symbols, diagnostic.line as usize))
+                .unwrap_or_else(|| "<file>".to_string());
+            let mut lsp_diag = json!({
+                "message": diagnostic.message,
+                "range": {
+                    "start": {"line": diagnostic.line.saturating_sub(1), "character": diagnostic.column.saturating_sub(1)},
+                    "end": {"line": diagnostic.end_line.saturating_sub(1), "character": diagnostic.end_column.saturating_sub(1)}
+                }
+            });
+            if let Some(sev) = match diagnostic.severity.as_str() {
+                "error" => Some(1),
+                "warning" => Some(2),
+                "info" => Some(3),
+                "hint" => Some(4),
+                _ => None,
+            } {
+                lsp_diag["severity"] = json!(sev);
+            }
+            if let Some(code) = &diagnostic.code {
+                lsp_diag["code"] = code.clone();
+            }
+            if let Some(source) = &diagnostic.source {
+                lsp_diag["source"] = json!(source);
+            }
+            json!({
+                "name_path": name_path,
+                "diagnostic": lsp_diag
+            })
+        })
+        .collect();
+    crate::diagnostics_group::group(file_key, entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lsp::Diagnostic;
+
+    #[test]
+    fn groups_diagnostics_by_owning_symbol() {
+        let dir = std::env::temp_dir().join(format!("astlens-tools-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("sample.py");
+        std::fs::write(
+            &path,
+            "class Store:\n    def add(self, item):\n        return item\n",
+        )
+        .unwrap();
+        let diagnostics = vec![Diagnostic {
+            line: 2,
+            column: 9,
+            end_line: 2,
+            end_column: 12,
+            severity: "warning".to_string(),
+            message: "Unused parameter".to_string(),
+            code: None,
+            source: Some("pyright".to_string()),
+        }];
+        let grouped = group_diagnostics(&path, &diagnostics).unwrap();
+        let file_key = path.display().to_string();
+        assert_eq!(
+            grouped[&file_key]["Warning"]["Store/add"][0]["message"],
+            "Unused parameter"
+        );
+    }
 }

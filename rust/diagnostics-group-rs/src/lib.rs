@@ -96,8 +96,13 @@ fn group_inner(
     relative_path: String,
     entries: Bound<'_, PyAny>,
 ) -> Result<serde_json::Value, String> {
-    let entries: Vec<serde_json::Value> = crate::pyconv::FromPy::from_py(&entries)?;
-    let out = port::group(relative_path, entries)?;
+    // Mirror Python: `for entry in entries` works on any iterable (list, dict keys, etc.)
+    let mut vec: Vec<serde_json::Value> = Vec::new();
+    for item in entries.try_iter().map_err(|e| e.to_string())? {
+        let item = item.map_err(|e| e.to_string())?;
+        vec.push(crate::pyconv::from_py(&item)?);
+    }
+    let out = port::group(relative_path, vec)?;
     Ok(out)
 }
 

@@ -12,6 +12,11 @@ mod ts;
 #[allow(dead_code)]
 mod name_path;
 
+// The gated diagnostics-group unit (rust/diagnostics-group-rs/src/port.rs), shared without a PyO3 link.
+#[path = "../../diagnostics-group-rs/src/port.rs"]
+#[allow(dead_code)]
+mod diagnostics_group;
+
 use std::sync::Arc;
 
 use serde_json::{Value, json};
