@@ -38,7 +38,11 @@ impl LspManager {
         let root = roots::workspace_root(path, lang);
         let key = (lang.name().to_string(), root.clone());
         if let Some(client) = self.clients.get(&key) {
-            return Ok(Arc::clone(client.value()));
+            if client.is_alive() {
+                return Ok(Arc::clone(client.value()));
+            }
+            drop(client);
+            self.clients.remove(&key);
         }
         let command = roots::server_command(lang)?;
         let client = Arc::new(LspClient::spawn(&command, &root, lang)?);
@@ -56,6 +60,7 @@ pub struct LspClient {
     next_id: AtomicI64,
     settled: AtomicBool,
     ready: Arc<AtomicBool>,
+    alive: Arc<AtomicBool>,
     root: PathBuf,
     language: Lang,
 }
@@ -101,11 +106,13 @@ impl LspClient {
         let diagnostics: DiagnosticsStore = Arc::new(Mutex::new(HashMap::new()));
         let writer = Arc::new(Mutex::new(stdin));
         let ready = Arc::new(AtomicBool::new(false));
+        let alive = Arc::new(AtomicBool::new(true));
 
         let reader_pending = Arc::clone(&pending);
         let reader_diagnostics = Arc::clone(&diagnostics);
         let reader_writer = Arc::clone(&writer);
         let reader_ready = Arc::clone(&ready);
+        let reader_alive = Arc::clone(&alive);
         std::thread::spawn(move || {
             reader_loop(
                 stdout,
@@ -113,6 +120,7 @@ impl LspClient {
                 reader_diagnostics,
                 reader_writer,
                 reader_ready,
+                reader_alive,
             )
         });
 
@@ -125,11 +133,16 @@ impl LspClient {
             next_id: AtomicI64::new(1),
             settled: AtomicBool::new(false),
             ready,
+            alive,
             root: root.to_path_buf(),
             language,
         };
         client.initialize()?;
         Ok(client)
+    }
+
+    pub fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::SeqCst)
     }
 
     fn initialize(&self) -> Result<(), String> {
@@ -161,12 +174,22 @@ impl LspClient {
     }
 
     pub fn request(&self, method: &str, params: Value, timeout: Duration) -> Result<Value, String> {
+        if !self.is_alive() {
+            return Err("language server exited".to_string());
+        }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (sender, receiver) = mpsc::channel();
         self.pending
             .lock()
             .map_err(|_| "pending map poisoned")?
             .insert(id, sender);
+        if !self.is_alive() {
+            self.pending
+                .lock()
+                .map_err(|_| "pending map poisoned")?
+                .remove(&id);
+            return Err("language server exited".to_string());
+        }
         let message = json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params});
         if let Err(error) = write_message(
             &mut *self.stdin.lock().map_err(|_| "stdin poisoned")?,
@@ -226,6 +249,10 @@ impl LspClient {
                 *len = signature.1;
                 *version += 1;
                 let version = *version;
+                // Drop diagnostics from the previous file version before sending didChange.
+                if let Ok(mut diagnostics) = self.diagnostics.lock() {
+                    diagnostics.remove(&uri);
+                }
                 self.notify(
                     "textDocument/didChange",
                     json!({
@@ -237,6 +264,9 @@ impl LspClient {
             }
             None => {
                 opened.insert(path, (signature.0, signature.1, 1));
+                if let Ok(mut diagnostics) = self.diagnostics.lock() {
+                    diagnostics.remove(&uri);
+                }
                 self.notify(
                     "textDocument/didOpen",
                     json!({
@@ -262,8 +292,8 @@ impl LspClient {
         if self.settled.swap(true, Ordering::SeqCst) {
             return;
         }
-        if self.language == Lang::Rust {
-            // rust-analyzer reports quiescence; wait for it instead of a fixed sleep.
+        if matches!(self.language, Lang::Rust | Lang::Lean) {
+            // rust-analyzer and Lean report quiescence/fileProgress; wait for readiness instead of a fixed sleep.
             let deadline = Instant::now() + Duration::from_secs(8);
             while !self.ready.load(Ordering::SeqCst) && Instant::now() < deadline {
                 std::thread::sleep(Duration::from_millis(100));
@@ -396,6 +426,15 @@ impl LspClient {
             }
             std::fs::write(&file, &new)
                 .map_err(|error| format!("cannot write {}: {error}", file.display()))?;
+            // Force a fresh didChange on the next query even if rename preserved length within the same mtime tick.
+            if let Ok(mut opened) = self.opened.lock() {
+                opened.remove(&file);
+            }
+            if let Ok(uri) = file_uri(&file)
+                && let Ok(mut diagnostics) = self.diagnostics.lock()
+            {
+                diagnostics.remove(&uri);
+            }
             changed.push((file.clone(), crate::diff::unified(&file, &old, &new)));
         }
         Ok(changed)
@@ -541,6 +580,7 @@ fn reader_loop(
     diagnostics: DiagnosticsStore,
     writer: Arc<Mutex<ChildStdin>>,
     ready: Arc<AtomicBool>,
+    alive: Arc<AtomicBool>,
 ) {
     let mut reader = BufReader::new(stdout);
     loop {
@@ -548,14 +588,23 @@ fn reader_loop(
         loop {
             let mut line = String::new();
             match reader.read_line(&mut line) {
-                Ok(0) | Err(_) => return,
+                Ok(0) | Err(_) => {
+                    alive.store(false, Ordering::SeqCst);
+                    if let Ok(mut pending) = pending.lock() {
+                        for (_, sender) in pending.drain() {
+                            let _ = sender.send(Err("language server exited".to_string()));
+                        }
+                    }
+                    return;
+                }
                 Ok(_) => {}
             }
             let line = line.trim_end();
             if line.is_empty() {
                 break;
             }
-            if let Some(value) = line.strip_prefix("Content-Length:") {
+            let lower = line.to_ascii_lowercase();
+            if let Some(value) = lower.strip_prefix("content-length:") {
                 length = value.trim().parse().unwrap_or(0);
             }
         }
@@ -564,6 +613,12 @@ fn reader_loop(
         }
         let mut body = vec![0u8; length];
         if reader.read_exact(&mut body).is_err() {
+            alive.store(false, Ordering::SeqCst);
+            if let Ok(mut pending) = pending.lock() {
+                for (_, sender) in pending.drain() {
+                    let _ = sender.send(Err("language server exited".to_string()));
+                }
+            }
             return;
         }
         let Ok(message) = serde_json::from_slice::<Value>(&body) else {
@@ -572,9 +627,18 @@ fn reader_loop(
         let id = message.get("id").cloned();
         let method = message.get("method").and_then(Value::as_str);
         match (id, method) {
-            (Some(id), Some(_)) => {
-                // A request from the server (progress, registration): answer null.
-                let response = json!({"jsonrpc": "2.0", "id": id, "result": Value::Null});
+            (Some(id), Some(method)) => {
+                let result = if method == "workspace/configuration" {
+                    let count = message
+                        .get("params")
+                        .and_then(|params| params.get("items"))
+                        .and_then(Value::as_array)
+                        .map_or(0, Vec::len);
+                    Value::Array(vec![Value::Null; count])
+                } else {
+                    Value::Null
+                };
+                let response = json!({"jsonrpc": "2.0", "id": id, "result": result});
                 if let Ok(mut writer) = writer.lock() {
                     let _ = write_message(&mut writer, &response);
                 }
@@ -598,6 +662,16 @@ fn reader_loop(
                     .and_then(|params| params.get("quiescent"))
                     .and_then(Value::as_bool)
                     == Some(true)
+                {
+                    ready.store(true, Ordering::SeqCst);
+                }
+            }
+            (None, Some("$/lean/fileProgress")) => {
+                if message
+                    .get("params")
+                    .and_then(|params| params.get("processing"))
+                    .and_then(Value::as_array)
+                    .is_some_and(Vec::is_empty)
                 {
                     ready.store(true, Ordering::SeqCst);
                 }
@@ -712,5 +786,147 @@ mod tests {
         let uri = file_uri(path).unwrap();
         assert!(uri.starts_with("file://"));
         assert_eq!(uri_to_path(&uri).unwrap(), path);
+    }
+
+    fn spawn_mock_lsp(name: &str, script: &str, root: &Path) -> LspClient {
+        let script_path = root.join(name);
+        std::fs::write(&script_path, script).unwrap();
+        let cmd = vec!["python3".to_string(), script_path.display().to_string()];
+        LspClient::spawn(&cmd, root, Lang::Python).unwrap()
+    }
+
+    #[test]
+    fn diagnostics_drops_stale_cache_after_did_change() {
+        let root = std::env::temp_dir().join(format!("astlens-lsp-diag-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let file = root.join("main.py");
+        std::fs::write(&file, "x = bad()\n").unwrap();
+        let script = r#"
+import json, sys, time
+def read_msg():
+    n = 0
+    while True:
+        line = sys.stdin.buffer.readline()
+        if not line: return None
+        s = line.decode().strip()
+        if not s: break
+        if s.lower().startswith("content-length:"): n = int(s.split(":", 1)[1])
+    return json.loads(sys.stdin.buffer.read(n))
+def send_msg(obj):
+    b = json.dumps(obj).encode()
+    sys.stdout.buffer.write(f"Content-Length: {len(b)}\r\n\r\n".encode() + b)
+    sys.stdout.buffer.flush()
+while True:
+    m = read_msg()
+    if m is None: break
+    method = m.get("method")
+    if method == "initialize":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": {"capabilities": {}}})
+    elif method == "textDocument/didOpen":
+        uri = m["params"]["textDocument"]["uri"]
+        send_msg({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {
+            "uri": uri,
+            "diagnostics": [{"range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 1}}, "severity": 1, "message": "old error"}]
+        }})
+    elif method == "textDocument/didChange":
+        uri = m["params"]["textDocument"]["uri"]
+        time.sleep(0.15)
+        send_msg({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"uri": uri, "diagnostics": []}})
+    elif method == "shutdown":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": None})
+        break
+"#;
+        let client = spawn_mock_lsp("mock_diag.py", script, &root);
+        let first = client.diagnostics(&file).unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].message, "old error");
+
+        std::thread::sleep(Duration::from_millis(20));
+        std::fs::write(&file, "x = 1\n").unwrap();
+        let second = client.diagnostics(&file).unwrap();
+        assert!(second.is_empty(), "got stale diagnostics: {second:?}");
+    }
+
+    #[test]
+    fn reader_handles_lowercase_content_length_and_workspace_configuration() {
+        let root = std::env::temp_dir().join(format!("astlens-lsp-cfg-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let script = r#"
+import json, sys
+def read_msg():
+    n = 0
+    while True:
+        line = sys.stdin.buffer.readline()
+        if not line: return None
+        s = line.decode().strip()
+        if not s: break
+        if s.lower().startswith("content-length:"): n = int(s.split(":", 1)[1])
+    return json.loads(sys.stdin.buffer.read(n))
+def send_msg(obj):
+    b = json.dumps(obj).encode()
+    sys.stdout.buffer.write(f"content-length: {len(b)}\r\n\r\n".encode() + b)
+    sys.stdout.buffer.flush()
+while True:
+    m = read_msg()
+    if m is None: break
+    method = m.get("method")
+    if method == "initialize":
+        send_msg({"jsonrpc": "2.0", "id": 99, "method": "workspace/configuration", "params": {"items": [{"section": "a"}, {"section": "b"}]}})
+        resp = read_msg()
+        if resp.get("result") != [None, None]:
+            send_msg({"jsonrpc": "2.0", "id": m["id"], "error": {"code": -32602, "message": f"bad config reply: {resp}"}})
+        else:
+            send_msg({"jsonrpc": "2.0", "id": m["id"], "result": {"capabilities": {}}})
+    elif method == "shutdown":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": None})
+        break
+"#;
+        let _client = spawn_mock_lsp("mock_cfg.py", script, &root);
+    }
+
+    #[test]
+    fn dead_lsp_fails_pending_requests_immediately() {
+        let root = std::env::temp_dir().join(format!("astlens-lsp-eof-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let script = r#"
+import json, sys
+def read_msg():
+    n = 0
+    while True:
+        line = sys.stdin.buffer.readline()
+        if not line: return None
+        s = line.decode().strip()
+        if not s: break
+        if s.lower().startswith("content-length:"): n = int(s.split(":", 1)[1])
+    return json.loads(sys.stdin.buffer.read(n))
+def send_msg(obj):
+    b = json.dumps(obj).encode()
+    sys.stdout.buffer.write(f"Content-Length: {len(b)}\r\n\r\n".encode() + b)
+    sys.stdout.buffer.flush()
+while True:
+    m = read_msg()
+    if m is None: break
+    if m.get("method") == "initialize":
+        send_msg({"jsonrpc": "2.0", "id": m["id"], "result": {"capabilities": {}}})
+    elif m.get("method") == "textDocument/references":
+        sys.exit(1)
+"#;
+        let client = spawn_mock_lsp("mock_eof.py", script, &root);
+        let file = root.join("main.py");
+        std::fs::write(&file, "x = 1\n").unwrap();
+        let started = Instant::now();
+        let err = client
+            .request(
+                "textDocument/references",
+                json!({}),
+                Duration::from_secs(10),
+            )
+            .unwrap_err();
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "hung for {:?}",
+            started.elapsed()
+        );
+        assert!(err.contains("exited") || err.contains("closed"), "{err}");
     }
 }

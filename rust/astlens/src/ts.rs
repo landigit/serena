@@ -16,6 +16,11 @@ pub enum Lang {
     Java,
     C,
     Cpp,
+    Ruby,
+    Php,
+    CSharp,
+    Kotlin,
+    Lean,
 }
 
 impl Lang {
@@ -30,6 +35,11 @@ impl Lang {
             "java" => Some(Self::Java),
             "c" | "h" => Some(Self::C),
             "cc" | "cpp" | "cxx" | "hpp" | "hh" | "hxx" => Some(Self::Cpp),
+            "rb" | "rake" | "gemspec" => Some(Self::Ruby),
+            "php" | "phtml" => Some(Self::Php),
+            "cs" => Some(Self::CSharp),
+            "kt" | "kts" => Some(Self::Kotlin),
+            "lean" => Some(Self::Lean),
             _ => None,
         }
     }
@@ -45,6 +55,11 @@ impl Lang {
             Self::Java => "java",
             Self::C => "c",
             Self::Cpp => "cpp",
+            Self::Ruby => "ruby",
+            Self::Php => "php",
+            Self::CSharp => "csharp",
+            Self::Kotlin => "kotlin",
+            Self::Lean => "lean",
         }
     }
 
@@ -59,6 +74,11 @@ impl Lang {
             Self::Java => tree_sitter_java::LANGUAGE.into(),
             Self::C => tree_sitter_c::LANGUAGE.into(),
             Self::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+            Self::Ruby => tree_sitter_ruby::LANGUAGE.into(),
+            Self::Php => tree_sitter_php::LANGUAGE_PHP.into(),
+            Self::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
+            Self::Kotlin => tree_sitter_kotlin_ng::LANGUAGE.into(),
+            Self::Lean => arborium_lean::language().into(),
         }
     }
 
@@ -74,6 +94,11 @@ impl Lang {
             Self::Java => "java",
             Self::C => "c",
             Self::Cpp => "cpp",
+            Self::Ruby => "ruby",
+            Self::Php => "php",
+            Self::CSharp => "csharp",
+            Self::Kotlin => "kotlin",
+            Self::Lean => "lean4",
         }
     }
 }
@@ -140,6 +165,16 @@ fn text<'a>(node: tree_sitter::Node<'_>, source: &'a str) -> &'a str {
 
 fn kind_label(kind: &str) -> &'static str {
     match kind {
+        "theorem" => "theorem",
+        "def" | "abbrev" | "axiom" | "singleton_method" | "method" | "local_function_statement" => {
+            "function"
+        }
+        "structure" | "inductive" | "record_declaration" => "type",
+        "instance" => "impl",
+        "section" | "file_scoped_namespace_declaration" => "module",
+        "object_declaration" | "companion_object" => "class",
+        "constant" | "enum_case" => "const",
+        "property_declaration" | "property_element" => "variable",
         k if k.contains("class") => "class",
         k if k.contains("interface") => "interface",
         k if k.contains("trait") => "trait",
@@ -147,7 +182,7 @@ fn kind_label(kind: &str) -> &'static str {
         k if k.contains("struct") || k.contains("union_specifier") => "struct",
         k if k.contains("impl") => "impl",
         k if k.contains("module") || k.contains("namespace") => "module",
-        k if k.contains("constructor") => "constructor",
+        k if k.contains("constructor") | k.contains("destructor") => "constructor",
         k if k.contains("method") || k.contains("function") => "function",
         k if k.contains("type") => "type",
         k if k.contains("const") => "const",
@@ -165,27 +200,39 @@ fn is_named_declaration(kind: &str) -> bool {
             | "function_item"
             | "function_signature"
             | "generator_function_declaration"
+            | "method"
+            | "singleton_method"
             | "method_definition"
             | "method_declaration"
             | "method_signature"
             | "constructor_declaration"
+            | "destructor_declaration"
+            | "local_function_statement"
+            | "class"
             | "class_declaration"
             | "abstract_class_declaration"
             | "class_definition"
+            | "object_declaration"
+            | "companion_object"
             | "interface_declaration"
+            | "trait_declaration"
             | "type_alias_declaration"
             | "type_item"
             | "type_spec"
             | "enum_declaration"
             | "enum_item"
             | "enum_specifier"
+            | "enum_case"
             | "struct_item"
             | "struct_specifier"
+            | "struct_declaration"
             | "union_item"
             | "trait_item"
             | "impl_item"
             | "mod_item"
             | "namespace_definition"
+            | "namespace_declaration"
+            | "file_scoped_namespace_declaration"
             | "module"
             | "internal_module"
             | "record_declaration"
@@ -194,6 +241,17 @@ fn is_named_declaration(kind: &str) -> bool {
             | "static_item"
             | "macro_definition"
             | "function_declarator"
+            | "def"
+            | "theorem"
+            | "abbrev"
+            | "axiom"
+            | "constant"
+            | "structure"
+            | "inductive"
+            | "class_inductive"
+            | "instance"
+            | "namespace"
+            | "section"
     )
 }
 
@@ -262,6 +320,41 @@ fn declarations(node: tree_sitter::Node<'_>, source: &str) -> Vec<(String, Strin
             "impl".to_string(),
             type_node.start_byte(),
         )];
+    }
+    if kind == "property_declaration" {
+        if let Some(name) = node.child_by_field_name("name") {
+            return vec![(
+                text(name, source).to_string(),
+                "variable".to_string(),
+                name.start_byte(),
+            )];
+        }
+        let mut out = Vec::new();
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            if child.kind() == "property_element"
+                && let Some(name) = child.child_by_field_name("name")
+            {
+                out.push((
+                    text(name, source).to_string(),
+                    "variable".to_string(),
+                    name.start_byte(),
+                ));
+            } else if child.kind() == "variable_declaration" {
+                let mut vcursor = child.walk();
+                for vchild in child.named_children(&mut vcursor) {
+                    if vchild.kind() == "identifier" {
+                        out.push((
+                            text(vchild, source).to_string(),
+                            "variable".to_string(),
+                            vchild.start_byte(),
+                        ));
+                        break;
+                    }
+                }
+            }
+        }
+        return out;
     }
     if is_named_declaration(kind)
         && let Some(name) = node.child_by_field_name("name")
@@ -407,5 +500,80 @@ mod tests {
         let symbol = best_match(&parsed, "Store/add", false).expect("Store/add");
         assert_eq!(symbol.name, "add");
         assert_eq!(symbol.line, 2);
+    }
+
+    #[test]
+    fn outlines_ruby_php_csharp_kotlin_and_lean() {
+        let rb = fixture(
+            "sample.rb",
+            "module Billing\n  class Invoice\n    def total\n      42\n    end\n  end\nend\n",
+        );
+        let rb_names: Vec<String> = flatten(&parse(&rb).unwrap().symbols)
+            .into_iter()
+            .map(|s| s.name_path.clone())
+            .collect();
+        assert!(
+            rb_names.contains(&"Billing/Invoice/total".to_string()),
+            "{rb_names:?}"
+        );
+
+        let php = fixture(
+            "sample.php",
+            "<?php\nnamespace App;\nclass Greeter {\n  public function hello() { return 'hi'; }\n}\n",
+        );
+        let php_names: Vec<String> = flatten(&parse(&php).unwrap().symbols)
+            .into_iter()
+            .map(|s| s.name_path.clone())
+            .collect();
+        assert!(php_names.contains(&"App".to_string()), "{php_names:?}");
+        assert!(
+            php_names.contains(&"Greeter/hello".to_string()),
+            "{php_names:?}"
+        );
+
+        let cs = fixture(
+            "Sample.cs",
+            "namespace App {\n  public class Calc {\n    public int Add(int a, int b) => a + b;\n  }\n}\n",
+        );
+        let cs_names: Vec<String> = flatten(&parse(&cs).unwrap().symbols)
+            .into_iter()
+            .map(|s| s.name_path.clone())
+            .collect();
+        assert!(
+            cs_names.contains(&"App/Calc/Add".to_string()),
+            "{cs_names:?}"
+        );
+
+        let kt = fixture(
+            "Sample.kt",
+            "class Repo {\n  val count: Int = 1\n  fun fetch() = count\n}\n",
+        );
+        let kt_names: Vec<String> = flatten(&parse(&kt).unwrap().symbols)
+            .into_iter()
+            .map(|s| s.name_path.clone())
+            .collect();
+        assert!(kt_names.contains(&"Repo/count".to_string()), "{kt_names:?}");
+        assert!(kt_names.contains(&"Repo/fetch".to_string()), "{kt_names:?}");
+
+        let lean = fixture(
+            "Sample.lean",
+            "namespace Math\nstructure Point where\n  x : Nat\ndef idNat (n : Nat) : Nat := n\ntheorem id_eq (n : Nat) : idNat n = n := rfl\nend Math\n",
+        );
+        let lean_names: Vec<String> = flatten(&parse(&lean).unwrap().symbols)
+            .into_iter()
+            .map(|s| s.name_path.clone())
+            .collect();
+        assert!(
+            lean_names.contains(&"Math/Point".to_string()),
+            "{lean_names:?}"
+        );
+        assert!(
+            lean_names.contains(&"Math/idNat".to_string()),
+            "{lean_names:?}"
+        );
+        assert!(
+            lean_names.contains(&"Math/id_eq".to_string()),
+            "{lean_names:?}"
+        );
     }
 }

@@ -281,6 +281,9 @@ fn references(arguments: &Value, manager: &Arc<LspManager>) -> Result<String, St
         .get("kind")
         .and_then(Value::as_str)
         .unwrap_or("references");
+    if !matches!(kind, "references" | "definition" | "implementation") {
+        return Err(format!("unknown kind '{kind}'"));
+    }
     let include_declaration = bool_argument(arguments, "include_declaration", true);
     let max_results = number_argument(arguments, "max_results").unwrap_or(200) as usize;
     let (line, character, name_path) = position_from_arguments(&path, arguments)?;
@@ -306,29 +309,33 @@ fn edit_symbol(arguments: &Value, manager: &Arc<LspManager>) -> Result<String, S
         .and_then(Value::as_str)
         .unwrap_or("replace");
 
-    if mode == "rename" {
-        let new_name = string_argument(arguments, "new_name")?;
-        let parsed = ts::parse(&path)?;
-        let (line, character, name_path) = resolve_position(&parsed, &pattern, false)?;
-        let client = manager.client_for(&path)?;
-        let changed = client.rename(&path, line, character, &new_name)?;
-        let files: Vec<String> = changed
-            .iter()
-            .map(|(file, _)| file.display().to_string())
-            .collect();
-        let diff = changed
-            .iter()
-            .map(|(_, diff)| diff.clone())
-            .collect::<Vec<_>>()
-            .join("\n");
-        let text = json!({
-            "mode": "rename",
-            "symbol": name_path,
-            "new_name": new_name,
-            "changed_files": files,
-            "diff": diff
-        });
-        return serde_json::to_string_pretty(&text).map_err(|error| error.to_string());
+    match mode {
+        "rename" => {
+            let new_name = string_argument(arguments, "new_name")?;
+            let parsed = ts::parse(&path)?;
+            let (line, character, name_path) = resolve_position(&parsed, &pattern, false)?;
+            let client = manager.client_for(&path)?;
+            let changed = client.rename(&path, line, character, &new_name)?;
+            let files: Vec<String> = changed
+                .iter()
+                .map(|(file, _)| file.display().to_string())
+                .collect();
+            let diff = changed
+                .iter()
+                .map(|(_, diff)| diff.clone())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let text = json!({
+                "mode": "rename",
+                "symbol": name_path,
+                "new_name": new_name,
+                "changed_files": files,
+                "diff": diff
+            });
+            return serde_json::to_string_pretty(&text).map_err(|error| error.to_string());
+        }
+        "replace" => {}
+        other => return Err(format!("unknown mode '{other}'")),
     }
 
     let content = string_argument(arguments, "content")?;
@@ -409,8 +416,13 @@ fn owner_name_path(symbols: &[ts::Symbol], line: usize) -> String {
     ts::flatten(symbols)
         .into_iter()
         .filter(|symbol| symbol.line <= line && line <= symbol.end_line)
-        // Narrowest span wins, breaking ties in favor of deeper/later nested symbols.
-        .min_by_key(|symbol| (symbol.end_line - symbol.line, usize::MAX - symbol.line))
+        // Smallest byte span wins so same-line nested symbols beat their parent.
+        .min_by_key(|symbol| {
+            (
+                symbol.end_byte - symbol.start_byte,
+                usize::MAX - symbol.name_path.len(),
+            )
+        })
         .map(|symbol| symbol.name_path.clone())
         .unwrap_or_else(|| "<file>".to_string())
 }
@@ -487,5 +499,44 @@ mod tests {
             grouped[&file_key]["Warning"]["Store/add"][0]["message"],
             "Unused parameter"
         );
+    }
+
+    #[test]
+    fn same_line_nested_symbol_picks_inner_owner() {
+        let dir = std::env::temp_dir().join(format!("astlens-tools-inline-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("inline.tsx");
+        std::fs::write(
+            &path,
+            "export function App() { const handleClick = () => 1; }\n",
+        )
+        .unwrap();
+        let parsed = ts::parse(&path).unwrap();
+        assert_eq!(owner_name_path(&parsed.symbols, 1), "App/handleClick");
+    }
+
+    #[test]
+    fn rejects_unknown_mode_and_kind() {
+        let dir = std::env::temp_dir().join(format!("astlens-tools-err-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("sample.py");
+        std::fs::write(&path, "def x():\n    pass\n").unwrap();
+        let manager = Arc::new(LspManager::new());
+
+        let err_mode = run(
+            "edit_symbol",
+            &json!({"file": path, "name_path": "x", "mode": "bogus", "content": "def x(): pass"}),
+            &manager,
+        )
+        .unwrap_err();
+        assert!(err_mode.contains("unknown mode"), "{err_mode}");
+
+        let err_kind = run(
+            "find_references",
+            &json!({"file": path, "name_path": "x", "kind": "bogus"}),
+            &manager,
+        )
+        .unwrap_err();
+        assert!(err_kind.contains("unknown kind"), "{err_kind}");
     }
 }
