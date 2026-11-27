@@ -33,6 +33,8 @@ Every call derives `(language, workspace_root)` from the target file path and re
 | Kotlin | `.kt`, `.kts` | `kotlin-lsp --stdio` / `kotlin-language-server --stdio` | `ASTLENS_LSP_KOTLIN` |
 | Lean 4 | `.lean` | `lean --server` | `ASTLENS_LSP_LEAN` |
 
+> **Note on Julia:** Julia (`julia_server.py` / `fatou_language_server.py`) is supported in Python Serena's `solidlsp`, not yet in `astlens` (planned under **PR #6** / Tier 3 in [rust/README.md](../README.md#pr-roadmap-unit-by-unit-rust-port)).
+
 ## Shared Gated Units
 
 `astlens` compiles in two gated `rust-anything` port modules directly without a PyO3 link:
@@ -111,7 +113,12 @@ mv -f ~/.gemini/config/plugins/astlens/bin/astlens.new ~/.gemini/config/plugins/
 
 ## Speed, Accuracy & Efficiency
 
-> **Note:** No side-by-side latency benchmark between `astlens` and original Serena has been recorded in this repository yet (evaluations under `docs/04-evaluation/` cover original Serena only).
+> **Measured stdio baseline (on this repo, v1.3 release binary with `rust-analyzer 1.100.0` & `ty 0.0.112`; no side-by-side Python Serena run recorded):**
+> - `initialize`: **1.1 ms**
+> - `read_symbol` (`ElixirTools/new`): **2.1 ms**
+> - `ast_outline` (`rust/astlens/src/lsp.rs`, ~34 KB): **7.6 ms**; (`src/serena/agent.py`, ~85 KB): **18.4 ms**
+> - `find_references` warm (`rust-analyzer`): **18.9 ms**
+> - `diagnostics` cold (`rust-analyzer` / `ty`): **5,923.9 ms** / **1,673.2 ms**; warm clean/unchanged file: **1,508.5 ms** / **1,514.7 ms** (due to the `1500 ms` `publishDiagnostics` wait in `lsp.rs`, targeted for optimization in PR #5)
 
 - **Speed**:
   - `ast_outline`, `read_symbol`, and `edit_symbol` (`mode: "replace"`) execute purely on in-process tree-sitter with zero LSP startup.

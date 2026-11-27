@@ -19,7 +19,7 @@
 
 ## Language Support & Server Overrides
 
-`astlens` supports **14** languages/dialects: TypeScript, TSX, JavaScript, Rust, Python, Go, Java, C, C++, Ruby, PHP, C#, Kotlin, and Lean 4. Each language starts its default LSP lazily on first semantic call (`find_references`, `diagnostics`, or `edit_symbol` with `mode: "rename"`), preferring modern servers (`tsgo` / `vtsls` for TS/JS, `ty` / `pyrefly` / `pyright` for Python, `ruby-lsp`, `intelephense` / `phpactor`, `csharp-ls`, `kotlin-lsp`, `lean --server`) and checking `~/.cargo/bin`, `~/.elan/bin`, and `~/.local/bin` in addition to `PATH`. Any server can be overridden with `ASTLENS_LSP_<LANG>` (e.g., `ASTLENS_LSP_LEAN="lean --server"`).
+`astlens` supports **14** languages/dialects: TypeScript, TSX, JavaScript, Rust, Python, Go, Java, C, C++, Ruby, PHP, C#, Kotlin, and Lean 4. *(Julia is supported in Python Serena via `julia_server.py` / `fatou_language_server.py`, not yet in `astlens`; see the [PR Roadmap](../../rust/README.md#pr-roadmap-unit-by-unit-rust-port).)* Each language starts its default LSP lazily on first semantic call (`find_references`, `diagnostics`, or `edit_symbol` with `mode: "rename"`), preferring modern servers (`tsgo` / `vtsls` for TS/JS, `ty` / `pyrefly` / `pyright` for Python, `ruby-lsp`, `intelephense` / `phpactor`, `csharp-ls`, `kotlin-lsp`, `lean --server`) and checking `~/.cargo/bin`, `~/.elan/bin`, and `~/.local/bin` in addition to `PATH`. Any server can be overridden with `ASTLENS_LSP_<LANG>` (e.g., `ASTLENS_LSP_LEAN="lean --server"`).
 
 ## Building & Installing
 
@@ -54,10 +54,10 @@ This outputs a single release binary at `rust/astlens/target/release/astlens` (`
 
 ## Performance, Accuracy & Efficiency
 
-> **Note:** No side-by-side latency benchmark between `astlens` and original Serena has been recorded in this repository yet.
+> **Measured stdio baseline (this repo, v1.3 release binary with `rust-analyzer 1.100.0` & `ty 0.0.112`; no side-by-side Python Serena run recorded):** `initialize` **1.1 ms**, `read_symbol` **2.1 ms**, `ast_outline` **7.6–18.4 ms**, warm `find_references` **18.9 ms**, cold `diagnostics` **5.9 s** (`rust-analyzer`) / **1.7 s** (`ty`), warm clean-file `diagnostics` **~1.5 s** (due to the `1500 ms` `publishDiagnostics` wait, targeted in PR #5).
 
 - **Speed**: Structural tools (`ast_outline`, `read_symbol`, `edit_symbol` replace) run purely on in-process tree-sitter without spawning an LSP. Semantic tools spawn an LSP lazily per `(language, workspace_root)` and reuse it for subsequent calls; the first semantic call per client performs a one-time settle (up to `8s` readiness polling for `rust-analyzer`/Lean, `2000 ms` for other LSPs).
 - **Accuracy**: `rust/name-path` (**464/464** cases) and `rust/diagnostics-group-rs` (**92/92** cases) pass `rust-anything gate` against Python Serena oracles, and disk-truth `(mtime, len)` resync prevents stale buffers after external edits. Current v1 limits: overload `[i]` syntax is parsed in patterns without tree-sitter overload metadata yet, `diagnostics` is single-file per call, and idle LSP children stay alive until the MCP server exits.
 - **Efficiency**: Five compact tool schemas with no always-on rules budget overhead, plus built-in output bounds (`read_symbol` `6,000`-char default cap configurable `500`–`20,000`, `ast_outline` `20 KB` top-level fallback, `find_references` `200`-result default cap up to `1,000`, `diagnostics` `500`-item cap, and compact unified diffs from `edit_symbol`).
 
-See [rust/README.md](https://github.com/oraios/serena/blob/main/rust/README.md) and [rust/MAP.md](https://github.com/oraios/serena/blob/main/rust/MAP.md) for current port status and roadmap items.
+See [rust/README.md](../../rust/README.md) (including the renumbered [PR Roadmap](../../rust/README.md#pr-roadmap-unit-by-unit-rust-port)) and [rust/MAP.md](../../rust/MAP.md) for current port status and roadmap items.
