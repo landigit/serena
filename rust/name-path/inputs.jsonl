@@ -1,0 +1,34 @@
+{"fn": "match_name_path", "args": ["foo", ["foo"], false]}
+{"fn": "pattern_components", "args": ["foo"]}
+{"fn": "match_name_path", "args": ["foo/", ["foo"], false]}
+{"fn": "pattern_components", "args": ["foo/"]}
+{"fn": "match_name_path", "args": ["foo", ["bar", "foo"], false]}
+{"fn": "pattern_components", "args": ["foo"]}
+{"fn": "match_name_path", "args": ["foo", ["foobar"], false]}
+{"fn": "pattern_components", "args": ["foo"]}
+{"fn": "match_name_path", "args": ["/foo", ["foo"], false]}
+{"fn": "pattern_components", "args": ["/foo"]}
+{"fn": "match_name_path", "args": ["/foo", ["bar", "foo"], false]}
+{"fn": "pattern_components", "args": ["/foo"]}
+{"fn": "match_name_path", "args": ["foo", ["foobar"], true]}
+{"fn": "pattern_components", "args": ["foo"]}
+{"fn": "match_name_path", "args": ["foo", ["bar", "my_foobar_func"], true]}
+{"fn": "pattern_components", "args": ["foo"]}
+{"fn": "match_name_path", "args": ["/foo", ["barfoobaz"], true]}
+{"fn": "pattern_components", "args": ["/foo"]}
+{"fn": "match_name_path", "args": ["bar/foo", ["bar", "foo"], false]}
+{"fn": "pattern_components", "args": ["bar/foo"]}
+{"fn": "match_name_path", "args": ["bar/foo", ["mod", "bar", "foo"], false]}
+{"fn": "pattern_components", "args": ["bar/foo"]}
+{"fn": "match_name_path", "args": ["bar/foo", ["bar", "foobar"], true]}
+{"fn": "pattern_components", "args": ["bar/foo"]}
+{"fn": "match_name_path", "args": ["ClassA/method", ["ClassA", "method"], false]}
+{"fn": "pattern_components", "args": ["ClassA/method"]}
+{"fn": "match_name_path", "args": ["ClassA/method[1]", ["ClassA", "method"], false]}
+{"fn": "pattern_components", "args": ["ClassA/method[1]"]}
+{"fn": "match_name_path", "args": ["ClassA/method[1]", ["ClassA", "method", "inner"], false]}
+{"fn": "pattern_components", "args": ["ClassA/method[1]"]}
+{"fn": "match_name_path", "args": ["inner", ["ClassA", "method", "inner"], false]}
+{"fn": "pattern_components", "args": ["inner"]}
+{"fn": "match_name_path", "args": ["/ClassA/method/inner", ["ClassA", "method", "inner"], false]}
+{"fn": "pattern_components", "args": ["/ClassA/method/inner"]}

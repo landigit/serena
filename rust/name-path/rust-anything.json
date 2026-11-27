@@ -1,0 +1,60 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/home/dev/antigravity/serena",
+  "unit": "rust/oracle/name_path.py",
+  "language": "python",
+  "kind": "pyo3",
+  "crate_name": "name-path-rs",
+  "exports": [
+    {
+      "name": "match_name_path",
+      "file": "rust/oracle/name_path.py",
+      "line": 34,
+      "params": [
+        {
+          "name": "pattern",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "parts",
+          "ts_type": "string[]",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "substring",
+          "ts_type": "boolean",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "boolean",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "pattern_components",
+      "file": "rust/oracle/name_path.py",
+      "line": 41,
+      "params": [
+        {
+          "name": "pattern",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "((string | int | undefined)[])[]",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    }
+  ],
+  "classes": [],
+  "js_only": []
+}
