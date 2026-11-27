@@ -41,48 +41,71 @@ pub fn diagnostic_output(diagnostic: serde_json::Value) -> Result<serde_json::Va
 }
 
 /// Port of `group` (`rust/oracle/diagnostics_group.py:25`).
-pub fn group(
-    relative_path: String,
-    entries: Vec<serde_json::Value>,
-) -> Result<serde_json::Value, String> {
+fn python_type_name(value: &serde_json::Value) -> &'static str {
+    match value {
+        serde_json::Value::Null => "NoneType",
+        serde_json::Value::Bool(_) => "bool",
+        serde_json::Value::Number(_) => "int",
+        serde_json::Value::String(_) => "str",
+        serde_json::Value::Array(_) => "list",
+        serde_json::Value::Object(_) => "dict",
+    }
+}
+
+pub fn group(relative_path: String, entries: Vec<serde_json::Value>) -> Result<serde_json::Value, String> {
     let mut grouped = serde_json::Map::new();
-    grouped.insert(
-        relative_path.clone(),
-        serde_json::Value::Object(serde_json::Map::new()),
-    );
-    let file_value = grouped
+    grouped.insert(relative_path.clone(), serde_json::Value::Object(serde_json::Map::new()));
+    let file_map = grouped
         .get_mut(&relative_path)
-        .ok_or("group: missing file")?;
-    let file_map = file_value
+        .ok_or("group: missing file")?
         .as_object_mut()
         .ok_or("group: file map must be an object")?;
     for entry in entries {
+        if !entry.is_object() {
+            return Err(format!(
+                "AttributeError: '{}' object has no attribute 'get'",
+                python_type_name(&entry)
+            ));
+        }
         let name_path = entry
             .get("name_path")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("<file>")
             .to_string();
-        let diagnostic = entry
-            .get("diagnostic")
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
+        let diagnostic = match entry.get("diagnostic") {
+            Some(value) => {
+                if !value.is_object() {
+                    return Err(format!(
+                        "AttributeError: '{}' object has no attribute 'get'",
+                        python_type_name(value)
+                    ));
+                }
+                value.clone()
+            }
+            None => serde_json::Value::Object(serde_json::Map::new()),
+        };
         let severity = severity_name(
             diagnostic
                 .get("severity")
                 .and_then(serde_json::Value::as_i64),
         )?;
-        let output = diagnostic_output(diagnostic)?;
-        let severity_map = file_map
-            .get_mut(&severity)
-            .ok_or("group: missing severity")?
+        let output = diagnostic_output(diagnostic.clone())?;
+        let mut severity_value = file_map
+            .get(&severity)
+            .cloned()
+            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+        let mut severity_map = severity_value
             .as_object_mut()
             .ok_or("group: severity map must be an object")?;
-        let list = severity_map
-            .get_mut(&name_path)
-            .ok_or("group: missing name path")?
+        let mut list_value = severity_map
+            .get(&name_path)
+            .cloned()
+            .unwrap_or(serde_json::Value::Array(Vec::new()));
+        let list = list_value
             .as_array_mut()
             .ok_or("group: group list must be an array")?;
         list.push(output);
+        file_map.insert(severity.clone(), serde_json::Value::Object(severity_map.clone()));
     }
     Ok(serde_json::Value::Object(grouped))
 }
