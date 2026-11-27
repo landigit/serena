@@ -149,6 +149,13 @@ impl OraiosJvmLanguageBackend {
                 ),
             };
         };
+        let Some(deadline) = Instant::now().checked_add(timeout) else {
+            return ShutdownOutcome::Failed {
+                reason: format!(
+                    "Failed to stop the IDE instance for project {project_name}: timeout {timeout_secs} exceeds Instant range"
+                ),
+            };
+        };
 
         let mut cmd = Command::new(&self.olb_binary);
         cmd.arg("stop")
@@ -173,7 +180,6 @@ impl OraiosJvmLanguageBackend {
         let stdout_handle = child.stdout.take().map(spawn_pipe_reader);
         let stderr_handle = child.stderr.take().map(spawn_pipe_reader);
 
-        let deadline = Instant::now() + timeout;
         let status = loop {
             match child.try_wait() {
                 Ok(Some(status)) => break Ok(status),
@@ -245,17 +251,35 @@ pub fn find_olb_in_path(path_env: Option<&OsStr>) -> Result<PathBuf, OlbError> {
 fn candidate_binary_paths(dir: &Path) -> Vec<PathBuf> {
     #[cfg(windows)]
     {
-        vec![
-            dir.join("olb.exe"),
-            dir.join("olb.cmd"),
-            dir.join("olb.bat"),
-            dir.join("olb"),
-        ]
+        windows_candidate_binary_paths(dir, std::env::var_os("PATHEXT").as_deref())
     }
     #[cfg(not(windows))]
     {
         vec![dir.join("olb")]
     }
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn windows_candidate_binary_paths(dir: &Path, pathext: Option<&OsStr>) -> Vec<PathBuf> {
+    let raw = pathext
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or(".COM;.EXE;.BAT;.CMD");
+
+    let mut paths = Vec::new();
+    for ext in raw.split(';') {
+        let trimmed = ext.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let suffix = trimmed.trim_start_matches('.');
+        if suffix.is_empty() {
+            continue;
+        }
+        let lower = suffix.to_ascii_lowercase();
+        paths.push(dir.join(format!("olb.{lower}")));
+    }
+    paths
 }
 
 fn is_executable_file(path: &Path) -> bool {
@@ -277,18 +301,15 @@ fn is_executable_file(path: &Path) -> bool {
 }
 
 fn ceil_timeout_duration(timeout_secs: f64) -> Option<Duration> {
-    if timeout_secs.is_nan() || timeout_secs < 0.0 {
+    if !timeout_secs.is_finite() || timeout_secs < 0.0 {
         return None;
     }
     if timeout_secs == 0.0 {
         return Some(Duration::ZERO);
     }
-    if !timeout_secs.is_finite() {
-        return None;
-    }
     let ceiled = timeout_secs.ceil();
-    if ceiled > u64::MAX as f64 {
-        return Some(Duration::from_secs(u64::MAX));
+    if ceiled >= u64::MAX as f64 {
+        return None;
     }
     Some(Duration::from_secs(ceiled as u64))
 }
@@ -422,7 +443,47 @@ mod tests {
                 find_olb_in_path(Some(joined_found.as_os_str())).unwrap(),
                 real_bin
             );
+
+            let symlink_dir = tmp.path.join("symlink_dir");
+            std::fs::create_dir_all(&symlink_dir).unwrap();
+            let symlink_bin = symlink_dir.join("olb");
+            std::os::unix::fs::symlink(&real_bin, &symlink_bin).unwrap();
+            assert_eq!(
+                find_olb_in_path(Some(symlink_dir.as_os_str())).unwrap(),
+                symlink_bin
+            );
+
+            let broken_dir = tmp.path.join("broken_dir");
+            std::fs::create_dir_all(&broken_dir).unwrap();
+            std::os::unix::fs::symlink(tmp.path.join("missing-target"), broken_dir.join("olb"))
+                .unwrap();
+            assert_eq!(
+                find_olb_in_path(Some(broken_dir.as_os_str())).unwrap_err(),
+                OlbError::BinaryNotFound
+            );
         }
+    }
+
+    #[test]
+    fn windows_pathext_candidates_follow_pathext_or_defaults() {
+        let dir = Path::new("C:\\tools");
+        assert_eq!(
+            windows_candidate_binary_paths(dir, None),
+            vec![
+                dir.join("olb.com"),
+                dir.join("olb.exe"),
+                dir.join("olb.bat"),
+                dir.join("olb.cmd"),
+            ]
+        );
+        assert_eq!(
+            windows_candidate_binary_paths(dir, Some(OsStr::new(".EXE;.PS1; ;.CMD"))),
+            vec![
+                dir.join("olb.exe"),
+                dir.join("olb.ps1"),
+                dir.join("olb.cmd"),
+            ]
+        );
     }
 
     #[test]
@@ -434,6 +495,9 @@ mod tests {
         assert_eq!(ceil_timeout_duration(-1.0), None);
         assert_eq!(ceil_timeout_duration(f64::NAN), None);
         assert_eq!(ceil_timeout_duration(f64::INFINITY), None);
+        assert_eq!(ceil_timeout_duration(u64::MAX as f64), None);
+        assert_eq!(ceil_timeout_duration(1e20), None);
+        assert_eq!(ceil_timeout_duration(f64::MAX), None);
     }
 
     #[cfg(unix)]
@@ -533,5 +597,32 @@ mod tests {
         let zero_timeout = OraiosJvmLanguageBackend::with_binary(&slow_bin)
             .shutdown_active_project("demo", &project_root, 0.0);
         assert!(matches!(zero_timeout, ShutdownOutcome::Failed { .. }));
+
+        for bad_timeout in [1e19, u64::MAX as f64, 1e20, f64::MAX] {
+            let huge_timeout = OraiosJvmLanguageBackend::with_binary(&ok_bin)
+                .shutdown_active_project("demo", &project_root, bad_timeout);
+            assert!(
+                matches!(huge_timeout, ShutdownOutcome::Failed { .. }),
+                "expected Failed for {bad_timeout}, got {huge_timeout:?}"
+            );
+        }
+
+        let large_pipe_bin = write_executable_script(
+            &tmp.path,
+            "olb-large-pipes",
+            "#!/bin/sh\n\
+             python3 -c 'import sys; sys.stdout.write(\"a\" * 262144); sys.stderr.write(\"  \" + \"b\" * 262144 + \"  \\n\")'\n\
+             exit 3\n",
+        );
+        let large_outcome = OraiosJvmLanguageBackend::with_binary(&large_pipe_bin)
+            .shutdown_active_project("demo", &project_root, 5.0);
+        match large_outcome {
+            ShutdownOutcome::NotStopped { code, output } => {
+                assert_eq!(code, Some(3));
+                assert_eq!(output.len(), 262_144);
+                assert!(output.bytes().all(|b| b == b'b'));
+            }
+            other => panic!("expected NotStopped for large pipes, got {other:?}"),
+        }
     }
 }
