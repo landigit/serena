@@ -1,0 +1,72 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "/home/dev/antigravity/serena",
+  "unit": "rust/oracle/diagnostics_group.py",
+  "language": "python",
+  "kind": "pyo3",
+  "crate_name": "diagnostics-group-rs",
+  "exports": [
+    {
+      "name": "severity_name",
+      "file": "rust/oracle/diagnostics_group.py",
+      "line": 10,
+      "params": [
+        {
+          "name": "severity",
+          "ts_type": "int | undefined",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "diagnostic_output",
+      "file": "rust/oracle/diagnostics_group.py",
+      "line": 16,
+      "params": [
+        {
+          "name": "diagnostic",
+          "ts_type": "dict",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "dict",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    },
+    {
+      "name": "group",
+      "file": "rust/oracle/diagnostics_group.py",
+      "line": 25,
+      "params": [
+        {
+          "name": "relative_path",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        },
+        {
+          "name": "entries",
+          "ts_type": "dict[]",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "dict",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    }
+  ],
+  "classes": [],
+  "js_only": []
+}

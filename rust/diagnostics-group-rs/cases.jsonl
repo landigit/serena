@@ -1,0 +1,92 @@
+{"fn": "severity_name", "args": [], "error": "TypeError: severity_name() missing 1 required positional argument: 'severity'"}
+{"fn": "severity_name", "args": [0], "ok": "Severity_0"}
+{"fn": "severity_name", "args": [{"$undefined": true}], "error": "TypeError: severity_name() missing 1 required positional argument: 'severity'"}
+{"fn": "severity_name", "args": [9223372036854775807], "ok": "Severity_9223372036854775807"}
+{"fn": "severity_name", "args": [2], "ok": "Warning"}
+{"fn": "severity_name", "args": [7], "ok": "Severity_7"}
+{"fn": "severity_name", "args": [1], "ok": "Error"}
+{"fn": "severity_name", "args": [42], "ok": "Severity_42"}
+{"fn": "severity_name", "args": [-1], "ok": "Severity_-1"}
+{"fn": "severity_name", "args": [255], "ok": "Severity_255"}
+{"fn": "severity_name", "args": [100], "ok": "Severity_100"}
+{"fn": "severity_name", "args": [-2147483648], "ok": "Severity_-2147483648"}
+{"fn": "severity_name", "args": [-100], "ok": "Severity_-100"}
+{"fn": "severity_name", "args": [2147483647], "ok": "Severity_2147483647"}
+{"fn": "diagnostic_output", "args": [true], "error": "AttributeError: 'bool' object has no attribute 'get'"}
+{"fn": "diagnostic_output", "args": [[]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "diagnostic_output", "args": [0], "error": "AttributeError: 'int' object has no attribute 'get'"}
+{"fn": "diagnostic_output", "args": [{}], "ok": {"message": "", "range": {}}}
+{"fn": "diagnostic_output", "args": [null], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "diagnostic_output", "args": ["x"], "error": "AttributeError: 'str' object has no attribute 'get'"}
+{"fn": "diagnostic_output", "args": [{"a": "b"}], "ok": {"message": "", "range": {}}}
+{"fn": "diagnostic_output", "args": [["a", 1]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "diagnostic_output", "args": [{"a": {"b": "c"}}], "ok": {"message": "", "range": {}}}
+{"fn": "group", "args": ["abca", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["ünïcödé", [null]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["İstanbul", [{"a": {"b": "c"}}]], "ok": {"İstanbul": {"Unknown": {"<file>": [{"message": "", "range": {}}]}}}}
+{"fn": "group", "args": ["a..b", []], "ok": {"a..b": {}}}
+{"fn": "group", "args": ["ΣΊΣΥΦΟΣhello world", [["a", 1]]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["src/a/b.ts", [["a", 1]]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["a", [["a", 1], {"a": "b"}, {"a": {"b": "c"}}]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["", ["x", "x", {}]], "error": "AttributeError: 'str' object has no attribute 'get'"}
+{"fn": "group", "args": ["a😀b😀c", [[], true, []]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["ünïcödéab", {"a": "b"}], "error": "AttributeError: 'str' object has no attribute 'get'"}
+{"fn": "group", "args": ["ns:key.path", [true, "x"]], "error": "AttributeError: 'bool' object has no attribute 'get'"}
+{"fn": "group", "args": [".leadingHELLO", ["a", 1]], "error": "AttributeError: 'str' object has no attribute 'get'"}
+{"fn": "group", "args": ["hello worldab", [["a", 1], null]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["abc日本語のテキスト", [["a", 1], 0]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": [":", null], "error": "TypeError: 'NoneType' object is not iterable"}
+{"fn": "group", "args": ["﻿bom", []], "ok": {"﻿bom": {}}}
+{"fn": "group", "args": ["helloab", []], "ok": {"helloab": {}}}
+{"fn": "group", "args": ["", []], "ok": {"": {}}}
+{"fn": "group", "args": ["Hello World", []], "ok": {"Hello World": {}}}
+{"fn": "group", "args": ["src/a/b.ts", null], "error": "TypeError: 'NoneType' object is not iterable"}
+{"fn": "group", "args": ["tab\tseparated", [null]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["{name} has {count} itemsns:key.path", {}], "ok": {"{name} has {count} itemsns:key.path": {}}}
+{"fn": "group", "args": ["key_name-1", 0], "error": "TypeError: 'int' object is not iterable"}
+{"fn": "group", "args": ["é", []], "ok": {"é": {}}}
+{"fn": "group", "args": ["a", [[]]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["abc", [true]], "error": "AttributeError: 'bool' object has no attribute 'get'"}
+{"fn": "group", "args": ["emoji 👍🏽 mix", [{"a": {"b": "c"}}]], "ok": {"emoji 👍🏽 mix": {"Unknown": {"<file>": [{"message": "", "range": {}}]}}}}
+{"fn": "group", "args": ["é", [[]]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["﻿bom", [true]], "error": "AttributeError: 'bool' object has no attribute 'get'"}
+{"fn": "group", "args": ["a😀b😀c", [0, ["a", 1]]], "error": "AttributeError: 'int' object has no attribute 'get'"}
+{"fn": "group", "args": ["abc", [{"a": "b"}, 0]], "error": "AttributeError: 'int' object has no attribute 'get'"}
+{"fn": "group", "args": ["hello world", [null]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["a:b:c:", [true]], "error": "AttributeError: 'bool' object has no attribute 'get'"}
+{"fn": "group", "args": ["a:b:chello", [0, [], {"a": {"b": "c"}}]], "error": "AttributeError: 'int' object has no attribute 'get'"}
+{"fn": "group", "args": ["é", {}], "ok": {"é": {}}}
+{"fn": "group", "args": ["ΣΊΣΥΦΟΣ", ["x"]], "error": "AttributeError: 'str' object has no attribute 'get'"}
+{"fn": "group", "args": ["{name} has {count} items", [{"a": {"b": "c"}}]], "ok": {"{name} has {count} items": {"Unknown": {"<file>": [{"message": "", "range": {}}]}}}}
+{"fn": "group", "args": ["hello world", [null, "x", {"a": "b"}]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["ünïcödé", [{}, ["a", 1]]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["﻿bom", [[], {"a": {"b": "c"}}]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["😀", ["x"]], "error": "AttributeError: 'str' object has no attribute 'get'"}
+{"fn": "group", "args": ["trailing.", "x"], "error": "AttributeError: 'str' object has no attribute 'get'"}
+{"fn": "group", "args": ["ab", [{}]], "ok": {"ab": {"Unknown": {"<file>": [{"message": "", "range": {}}]}}}}
+{"fn": "group", "args": ["abc", [["a", 1]]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["Hello World", [{}]], "ok": {"Hello World": {"Unknown": {"<file>": [{"message": "", "range": {}}]}}}}
+{"fn": "group", "args": ["﻿bom", [{"a": "b"}, [], {"a": "b"}]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["😀a:b:c", [{"a": {"b": "c"}}]], "ok": {"😀a:b:c": {"Unknown": {"<file>": [{"message": "", "range": {}}]}}}}
+{"fn": "group", "args": ["emoji 👍🏽 mix", {"a": "b"}], "error": "AttributeError: 'str' object has no attribute 'get'"}
+{"fn": "group", "args": ["a..b", [[], 0]], "error": "AttributeError: 'list' object has no attribute 'get'"}
+{"fn": "group", "args": ["  padded  ", [null, {"a": {"b": "c"}}]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["héllo wörld", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["👍🏽 thumbs", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["日本語", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["é", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["İstanbul", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["straße", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["ılık ırmak", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["👨‍👩‍👧 family", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["a b", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["ΣΊΣΥΦΟΣ", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["a😀b", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["﻿bom", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["a²b x½ y①", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["aⅠb Ⅻ", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["a𐐀b 𝐀bc", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["कि ٣٤", [null, {"a": "b"}, ["a", 1]]], "error": "AttributeError: 'NoneType' object has no attribute 'get'"}
+{"fn": "group", "args": ["src/example.py", [{"name_path": "<file>", "diagnostic": {"message": "Unexpected argument", "range": {"start": {"line": 4, "character": 8}, "end": {"line": 4, "character": 21}}, "severity": 2, "source": "Pyright"}}, {"name_path": "MyClass/my_method", "diagnostic": {"message": "Type mismatch", "range": {"start": {"line": 11, "character": 4}, "end": {"line": 11, "character": 18}}, "severity": 1, "code": 2322, "source": "typescript"}}]], "ok": {"src/example.py": {"Warning": {"<file>": [{"message": "Unexpected argument", "range": {"start": {"line": 4, "character": 8}, "end": {"line": 4, "character": 21}}, "source": "Pyright"}]}, "Error": {"MyClass/my_method": [{"message": "Type mismatch", "range": {"start": {"line": 11, "character": 4}, "end": {"line": 11, "character": 18}}, "code": 2322, "source": "typescript"}]}}}}
+{"fn": "group", "args": ["src/other.rs", [{"name_path": "Foo::bar", "diagnostic": {"message": "cannot find type Foo", "range": {"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 5}}, "severity": 1}}]], "ok": {"src/other.rs": {"Error": {"Foo::bar": [{"message": "cannot find type Foo", "range": {"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 5}}}]}}}}
