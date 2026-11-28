@@ -713,6 +713,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "codemode-memories"
+version = "0.1.0"
+dependencies = [
+ "codemode-core",
+ "codemode-store",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "codemode-policy"
 version = "0.1.0"
 dependencies = [
