@@ -13,7 +13,8 @@ use codemode_retrieval::{
     SearchQuery, build_resume_summary, html_to_text, index_path_gitignore, search_index,
 };
 use codemode_sandbox::{
-    ExecDispatch, ExecRequest, JobId, JobRegistry, detect_runtimes, execute_sandboxed, job_status,
+    ExecDispatch, ExecRequest, JobId, JobRegistry, ToolRpcHandler, detect_runtimes,
+    execute_sandboxed_with_rpc, job_status,
 };
 use codemode_store::{ContextDb, EventKind, JournalEvent, StoredChunkInput, utf8_preview};
 use codemode_ts::{Symbol, TsError, best_match_in_symbols, parse_file, symbol_body, unified_diff};
@@ -25,9 +26,10 @@ const DEFAULT_REPLY_CAP_BYTES: usize = 8192;
 const OUTLINE_CAP_BYTES: usize = 20_000;
 
 /// Shared stateless runtime context for MCP tool calls (keyed per canonical project root).
+#[derive(Clone)]
 pub struct ToolRuntime {
     pub lsp: Arc<LspManager>,
-    pub dbs: DashMap<PathBuf, Arc<ContextDb>>,
+    pub dbs: Arc<DashMap<PathBuf, Arc<ContextDb>>>,
     pub jobs: JobRegistry,
 }
 
@@ -41,7 +43,7 @@ impl ToolRuntime {
     pub fn new() -> Self {
         Self {
             lsp: Arc::new(LspManager::new()),
-            dbs: DashMap::new(),
+            dbs: Arc::new(DashMap::new()),
             jobs: JobRegistry::new(),
         }
     }
@@ -142,6 +144,7 @@ pub fn list() -> Value {
                 "type": "object",
                 "properties": {
                     "code": {"type": "string"},
+                    "mode": {"type": "string", "enum": ["shell", "codemode"], "description": "Default shell; codemode injects typed codemode.* RPC helper"},
                     "runtime": {"type": "string", "enum": ["sh", "bash", "python3", "node", "auto"]},
                     "cwd": {"type": "string"},
                     "project_root": {"type": "string"},
@@ -767,10 +770,11 @@ fn tool_execute(args: &Value, rt: &ToolRuntime) -> Result<String, String> {
     let cfg = load_config(&root)?;
     let db = rt.db_for(&root)?;
 
+    let mode = args.get("mode").and_then(Value::as_str).unwrap_or("shell");
     let runtime = args
         .get("runtime")
         .and_then(Value::as_str)
-        .unwrap_or("sh")
+        .unwrap_or(if mode == "codemode" { "python3" } else { "sh" })
         .to_string();
     let timeout_ms = num_arg(args, "timeout_ms").unwrap_or(cfg.policy.timeout_ms);
     let inline_cap_bytes =
@@ -791,7 +795,18 @@ fn tool_execute(args: &Value, rt: &ToolRuntime) -> Result<String, String> {
         .and_then(Value::as_str)
         .map(str::to_string);
 
-    let dispatch = execute_sandboxed(
+    let rpc_handler: Option<ToolRpcHandler> = match mode {
+        "shell" => None,
+        "codemode" => {
+            let rt_clone = rt.clone();
+            Some(Arc::new(move |tool: &str, call_args: Value| {
+                run(tool, &call_args, &rt_clone)
+            }))
+        }
+        other => return Err(format!("unknown code_execute mode '{other}'")),
+    };
+
+    let dispatch = execute_sandboxed_with_rpc(
         ExecRequest {
             runtime,
             code,
@@ -805,6 +820,7 @@ fn tool_execute(args: &Value, rt: &ToolRuntime) -> Result<String, String> {
         },
         db,
         &rt.jobs,
+        rpc_handler,
     )
     .map_err(|e| e.to_string())?;
 

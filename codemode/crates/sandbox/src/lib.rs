@@ -1,5 +1,6 @@
 //! Clean-room scrubbed sandbox execution with process-group kill, background jobs, and FTS5 spill.
 
+pub mod codemode_rpc;
 pub mod jobs;
 pub mod runtimes;
 
@@ -14,6 +15,7 @@ use std::time::{Duration, Instant};
 use codemode_store::{ContextDb, EventKind, JournalEvent, SpillHandle, StoredChunkInput};
 use serde::{Deserialize, Serialize};
 
+pub use codemode_rpc::{CodemodeBridge, ToolRpcHandler, wrap_script_with_codemode};
 pub use jobs::{JobId, JobRegistry, JobStatus, job_status};
 pub use runtimes::{build_scrubbed_env, detect_runtimes, resolve_runtime_command};
 
@@ -72,6 +74,32 @@ pub fn execute_sandboxed(
     db: Arc<ContextDb>,
     jobs: &JobRegistry,
 ) -> Result<ExecDispatch, SandboxError> {
+    execute_sandboxed_with_rpc(req, db, jobs, None)
+}
+
+/// Executes `req` with an optional `CodemodeBridge` RPC handler for `mode = "codemode"` scripts.
+pub fn execute_sandboxed_with_rpc(
+    mut req: ExecRequest,
+    db: Arc<ContextDb>,
+    jobs: &JobRegistry,
+    rpc_handler: Option<ToolRpcHandler>,
+) -> Result<ExecDispatch, SandboxError> {
+    let bridge = if let Some(handler) = rpc_handler {
+        let bridge = CodemodeBridge::start(handler)?;
+        let (runtime, wrapped) =
+            wrap_script_with_codemode(&req.runtime, &req.code, bridge.socket_path())
+                .map_err(SandboxError::InvalidRequest)?;
+        req.runtime = runtime;
+        req.code = wrapped;
+        req.extra_env.insert(
+            "CODEMODE_RPC_SOCK".into(),
+            bridge.socket_path().display().to_string(),
+        );
+        Some(bridge)
+    } else {
+        None
+    };
+
     // Validate runtime upfront even for background mode.
     let _ =
         resolve_runtime_command(&req.runtime, &req.code).map_err(SandboxError::InvalidRequest)?;
@@ -81,6 +109,7 @@ pub fn execute_sandboxed(
         let id_clone = job_id.clone();
         let jobs_ref = jobs.clone();
         std::thread::spawn(move || {
+            let _keep_bridge = bridge;
             let outcome = match run_foreground(req, &db) {
                 Ok(out) => out,
                 Err(err) => ExecOutcome {
@@ -98,6 +127,7 @@ pub fn execute_sandboxed(
     }
 
     let outcome = run_foreground(req, &db)?;
+    drop(bridge);
     Ok(ExecDispatch::Completed(outcome))
 }
 

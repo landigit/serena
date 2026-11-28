@@ -780,6 +780,7 @@ dependencies = [
  "codemode-store",
  "libc",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 
