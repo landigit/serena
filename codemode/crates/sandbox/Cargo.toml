@@ -1,0 +1,11 @@
+[package]
+name = "codemode-sandbox"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codemode-store = { path = "../store" }
+libc.workspace = true
+serde.workspace = true
+thiserror.workspace = true
