@@ -1,0 +1,9 @@
+[package]
+name = "codemode-policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codemode-core = { path = "../core" }
+serde.workspace = true

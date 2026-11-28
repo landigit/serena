@@ -1,0 +1,11 @@
+[package]
+name = "codemode-memories"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codemode-core = { path = "../core" }
+codemode-store = { path = "../store" }
+serde.workspace = true
+thiserror.workspace = true

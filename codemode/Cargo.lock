@@ -687,6 +687,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "codemode-hooks"
+version = "0.1.0"
+dependencies = [
+ "codemode-core",
+ "codemode-policy",
+ "codemode-retrieval",
+ "codemode-store",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "codemode-lsp"
 version = "0.1.0"
 dependencies = [
@@ -697,6 +710,24 @@ dependencies = [
  "serde_json",
  "thiserror",
  "url",
+]
+
+[[package]]
+name = "codemode-memories"
+version = "0.1.0"
+dependencies = [
+ "codemode-core",
+ "codemode-store",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "codemode-policy"
+version = "0.1.0"
+dependencies = [
+ "codemode-core",
+ "serde",
 ]
 
 [[package]]
