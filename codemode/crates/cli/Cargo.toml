@@ -17,3 +17,6 @@ codemode-retrieval = { path = "../retrieval" }
 codemode-sandbox = { path = "../sandbox" }
 codemode-store = { path = "../store" }
 serde_json.workspace = true
+
+[dev-dependencies]
+toml.workspace = true

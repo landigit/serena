@@ -688,6 +688,7 @@ dependencies = [
  "codemode-sandbox",
  "codemode-store",
  "serde_json",
+ "toml",
 ]
 
 [[package]]

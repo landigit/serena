@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "codemode": {
+      "type": "local",
+      "command": ["codemode", "serve"],
+      "enabled": true
+    }
+  },
+  "plugin": ["./plugins/codemode-hooks.ts"]
+}
