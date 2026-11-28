@@ -713,6 +713,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "codemode-sandbox"
+version = "0.1.0"
+dependencies = [
+ "codemode-store",
+ "libc",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "codemode-store"
 version = "0.1.0"
 dependencies = [
