@@ -71,13 +71,24 @@ impl Matcher {
 
     /// Port of `matches_reversed_components`; `parts` are the symbol's name path.
     fn matches(&self, parts: &[String], substring_matching: bool) -> bool {
+        let components: Vec<(String, Option<i64>)> =
+            parts.iter().map(|p| (p.clone(), None)).collect();
+        self.matches_with_overloads(&components, substring_matching)
+    }
+
+    /// Port of `matches_reversed_components` over `(name, overload_idx)` pairs.
+    fn matches_with_overloads(
+        &self,
+        parts: &[(String, Option<i64>)],
+        substring_matching: bool,
+    ) -> bool {
         let mut symbol = parts.iter().rev();
         for (i, component) in self.components.iter().rev().enumerate() {
-            let Some(name) = symbol.next() else {
+            let Some((name, overload_idx)) = symbol.next() else {
                 return false;
             };
             let substring = substring_matching && i == 0;
-            if !component.matches(name, None, substring) {
+            if !component.matches(name, *overload_idx, substring) {
                 return false;
             }
         }
@@ -96,6 +107,28 @@ pub fn match_name_path(
     substring: bool,
 ) -> Result<bool, String> {
     Ok(Matcher::parse(&pattern)?.matches(&parts, substring))
+}
+
+/// Port of `match_name_path_overloaded` (`rust/oracle/name_path.py`).
+pub fn match_name_path_overloaded(
+    pattern: String,
+    components: Vec<Value>,
+    substring: bool,
+) -> Result<bool, String> {
+    let mut parsed = Vec::with_capacity(components.len());
+    for item in components {
+        let arr = item
+            .as_array()
+            .ok_or_else(|| "TypeError: expected [name, overload_idx]".to_string())?;
+        let name = arr
+            .first()
+            .and_then(Value::as_str)
+            .ok_or_else(|| "TypeError: component name must be a string".to_string())?
+            .to_string();
+        let overload_idx = arr.get(1).and_then(Value::as_i64);
+        parsed.push((name, overload_idx));
+    }
+    Ok(Matcher::parse(&pattern)?.matches_with_overloads(&parsed, substring))
 }
 
 /// Port of `pattern_components` (`rust/oracle/name_path.py:41`).
@@ -136,6 +169,30 @@ mod tests {
                 "ClassA/method[1]".into(),
                 vec!["ClassA".into(), "method".into()],
                 false
+            )
+            .unwrap()
+        );
+        assert!(
+            match_name_path_overloaded(
+                "ClassA/method[1]".into(),
+                vec![json!(["ClassA", null]), json!(["method", 1])],
+                false
+            )
+            .unwrap()
+        );
+        assert!(
+            !match_name_path_overloaded(
+                "ClassA/method[1]".into(),
+                vec![json!(["ClassA", null]), json!(["method", 0])],
+                false
+            )
+            .unwrap()
+        );
+        assert!(
+            match_name_path_overloaded(
+                "ClassA/met[1]".into(),
+                vec![json!(["ClassA", null]), json!(["method", 1])],
+                true
             )
             .unwrap()
         );

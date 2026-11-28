@@ -95,10 +95,35 @@ fn pattern_components(py: Python<'_>, pattern: String) -> PyResult<Py<PyAny>> {
         .and_then(|v| crate::pyconv::ToPy::to_py(&v, py))
 }
 
+fn match_name_path_overloaded_inner(
+    pattern: String,
+    components: Vec<serde_json::Value>,
+    substring: bool,
+) -> Result<bool, String> {
+    port::match_name_path_overloaded(pattern, components, substring)
+}
+
+/// `match_name_path_overloaded`.
+#[pyfunction]
+#[pyo3(name = "match_name_path_overloaded", signature = (pattern, components, substring))]
+fn match_name_path_overloaded(
+    pattern: String,
+    components: &Bound<'_, PyAny>,
+    substring: bool,
+) -> PyResult<bool> {
+    let items = crate::pyconv::from_py(components)
+        .map_err(error)?
+        .as_array()
+        .cloned()
+        .ok_or_else(|| error("TypeError: components must be a list".to_string()))?;
+    match_name_path_overloaded_inner(pattern, items, substring).map_err(error)
+}
+
 #[pymodule]
 #[pyo3(name = "_native")]
 fn native_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(match_name_path, m)?)?;
     m.add_function(wrap_pyfunction!(pattern_components, m)?)?;
+    m.add_function(wrap_pyfunction!(match_name_path_overloaded, m)?)?;
     Ok(())
 }

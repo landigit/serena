@@ -44,3 +44,20 @@ def pattern_components(pattern: str) -> list[list[str | int | None]]:
     return [[component.name, component.overload_idx] for component in matcher._components]
 
 
+OVERLOADED_CORPUS: list[tuple[str, list[list[str | int | None]], bool]] = [
+    ("Calc/add[0]", [["Calc", None], ["add", 0]], False),
+    ("Calc/add[1]", [["Calc", None], ["add", 0]], False),
+    ("Calc/add[1]", [["Calc", None], ["add", 1]], False),
+    ("Calc/add", [["Calc", None], ["add", 1]], False),
+    ("/Calc/add[1]", [["Calc", None], ["add", 1]], False),
+    ("Calc/ad[1]", [["Calc", None], ["add", 1]], True),
+]
+
+
+def match_name_path_overloaded(pattern: str, components: list[list[str | int | None]], substring: bool) -> bool:
+    """Match a name-path pattern against [name, overload_idx] components."""
+    parsed = [NamePathComponent(name, overload_idx) for name, overload_idx in components]
+    matcher = NamePathMatcher(pattern, substring)
+    return matcher.matches_reversed_components(reversed(parsed))
+
+
