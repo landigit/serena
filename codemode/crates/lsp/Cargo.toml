@@ -1,0 +1,14 @@
+[package]
+name = "codemode-lsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codemode-core = { path = "../core" }
+codemode-ts = { path = "../ts" }
+dashmap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+url.workspace = true

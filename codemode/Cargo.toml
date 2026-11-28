@@ -9,11 +9,14 @@ license = "GPL-3.0-or-later"
 
 [workspace.dependencies]
 blake3 = "1.8"
+dashmap = "6.2.1"
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 similar = "3.2.1"
 thiserror = "2.0.21"
 toml = "1.2"
 tree-sitter = "0.27.2"
+url = "2.5.9"
 
 [profile.release]
 lto = true
