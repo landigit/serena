@@ -1,5 +1,6 @@
 //! Tree-sitter structural engine: outlines, symbol bodies and single-node edits.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -103,11 +104,22 @@ impl Lang {
     }
 }
 
+pub type PathComponent = (String, Option<i64>);
+
+struct ParsedPattern {
+    absolute: bool,
+    components: Vec<PathComponent>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Symbol {
     pub name: String,
     pub kind: String,
     pub name_path: String,
+    #[serde(skip)]
+    pub overload_idx: Option<usize>,
+    #[serde(skip)]
+    pub path_components: Vec<PathComponent>,
     pub line: usize,
     pub end_line: usize,
     #[serde(skip)]
@@ -151,7 +163,8 @@ pub fn parse(path: &Path) -> Result<Parsed, String> {
         .parse(source.as_bytes(), None)
         .ok_or_else(|| format!("tree-sitter could not parse {}", path.display()))?;
 
-    let symbols = collect(tree.root_node(), &source, &[], None);
+    let mut symbols = collect(tree.root_node(), &source);
+    finalize_paths(&mut symbols, "", &[]);
     Ok(Parsed {
         lang,
         source,
@@ -373,34 +386,25 @@ fn declarations(node: tree_sitter::Node<'_>, source: &str) -> Vec<(String, Strin
     Vec::new()
 }
 
-fn collect(
-    node: tree_sitter::Node<'_>,
-    source: &str,
-    ancestors: &[String],
-    depth: Option<usize>,
-) -> Vec<Symbol> {
+fn collect(node: tree_sitter::Node<'_>, source: &str) -> Vec<Symbol> {
     let mut out = Vec::new();
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
         let declared = declarations(child, source);
         if declared.is_empty() {
-            out.extend(collect(child, source, ancestors, depth));
+            out.extend(collect(child, source));
             continue;
         }
         for (name, kind, name_byte) in declared {
-            let mut path = ancestors.to_vec();
-            path.push(name.clone());
-            let children = if depth.is_some_and(|limit| path.len() >= limit) {
-                Vec::new()
-            } else {
-                collect(child, source, &path, depth)
-            };
+            let children = collect(child, source);
             let start = child.start_position();
             let end = child.end_position();
             out.push(Symbol {
                 name,
                 kind,
-                name_path: path.join("/"),
+                name_path: String::new(),
+                overload_idx: None,
+                path_components: Vec::new(),
                 line: start.row + 1,
                 end_line: end.row + 1,
                 start_byte: child.start_byte(),
@@ -413,6 +417,44 @@ fn collect(
     out
 }
 
+fn finalize_paths(symbols: &mut [Symbol], prefix_str: &str, prefix_components: &[PathComponent]) {
+    let mut total_counts: HashMap<String, usize> = HashMap::new();
+    for symbol in symbols.iter() {
+        *total_counts.entry(symbol.name.clone()).or_insert(0) += 1;
+    }
+    let mut seen_counts: HashMap<String, usize> = HashMap::new();
+    for symbol in symbols.iter_mut() {
+        let total = total_counts.get(&symbol.name).copied().unwrap_or(0);
+        let overload_idx = if total > 1 {
+            let entry = seen_counts.entry(symbol.name.clone()).or_insert(0);
+            let idx = *entry;
+            *entry += 1;
+            Some(idx)
+        } else {
+            None
+        };
+        let segment = match overload_idx {
+            Some(idx) => format!("{}[{idx}]", symbol.name),
+            None => symbol.name.clone(),
+        };
+        let name_path = if prefix_str.is_empty() {
+            segment
+        } else {
+            format!("{prefix_str}/{segment}")
+        };
+        let mut components = prefix_components.to_vec();
+        components.push((symbol.name.clone(), overload_idx.map(|idx| idx as i64)));
+        symbol.overload_idx = overload_idx;
+        symbol.name_path = name_path;
+        symbol.path_components = components;
+        finalize_paths(
+            &mut symbol.children,
+            &symbol.name_path,
+            &symbol.path_components,
+        );
+    }
+}
+
 pub fn flatten(symbols: &[Symbol]) -> Vec<&Symbol> {
     let mut out = Vec::new();
     for symbol in symbols {
@@ -421,23 +463,72 @@ pub fn flatten(symbols: &[Symbol]) -> Vec<&Symbol> {
     out
 }
 
-/// All symbols whose name path matches the pattern (Serena semantics).
+fn parse_pattern(pattern: &str) -> Option<ParsedPattern> {
+    let raw = crate::name_path::pattern_components(pattern.to_string()).ok()?;
+    let mut components = Vec::with_capacity(raw.len());
+    for item in raw {
+        let array = item.as_array()?;
+        let name = array.first()?.as_str()?.to_string();
+        let overload_idx = array.get(1).and_then(serde_json::Value::as_i64);
+        components.push((name, overload_idx));
+    }
+    Some(ParsedPattern {
+        absolute: pattern.starts_with('/'),
+        components,
+    })
+}
+
+fn matches_components(
+    parsed: &ParsedPattern,
+    symbol: &[PathComponent],
+    substring_matching: bool,
+) -> bool {
+    let pattern = &parsed.components;
+    if pattern.is_empty() || pattern.len() > symbol.len() {
+        return false;
+    }
+    if parsed.absolute && pattern.len() != symbol.len() {
+        return false;
+    }
+    let offset = symbol.len() - pattern.len();
+    for (idx, ((pat_name, pat_idx), (sym_name, sym_idx))) in
+        pattern.iter().zip(symbol[offset..].iter()).enumerate()
+    {
+        let is_last = idx + 1 == pattern.len();
+        let name_ok = if substring_matching && is_last {
+            sym_name.contains(pat_name.as_str())
+        } else {
+            sym_name == pat_name
+        };
+        if !name_ok {
+            return false;
+        }
+        if let Some(wanted) = pat_idx
+            && *sym_idx != Some(*wanted)
+        {
+            return false;
+        }
+    }
+    true
+}
+
+/// All symbols whose name path matches the pattern (Serena semantics, overload-aware).
 pub fn find<'a>(parsed: &'a Parsed, pattern: &str, substring: bool) -> Vec<&'a Symbol> {
+    let Some(parsed_pattern) = parse_pattern(pattern) else {
+        return Vec::new();
+    };
     flatten(&parsed.symbols)
         .into_iter()
-        .filter(|symbol| {
-            let parts: Vec<String> = symbol.name_path.split('/').map(str::to_string).collect();
-            crate::name_path::match_name_path(pattern.to_string(), parts, substring)
-                .unwrap_or(false)
-        })
+        .filter(|symbol| matches_components(&parsed_pattern, &symbol.path_components, substring))
         .collect()
 }
 
 pub fn best_match<'a>(parsed: &'a Parsed, pattern: &str, substring: bool) -> Option<&'a Symbol> {
     let matches = find(parsed, pattern, substring);
+    let trimmed = pattern.trim_matches('/');
     matches
         .iter()
-        .find(|symbol| symbol.name_path == pattern)
+        .find(|symbol| symbol.name_path == trimmed)
         .copied()
         .or_else(|| matches.first().copied())
 }
@@ -575,5 +666,50 @@ mod tests {
             lean_names.contains(&"Math/id_eq".to_string()),
             "{lean_names:?}"
         );
+    }
+
+    #[test]
+    fn assigns_overload_indexes_and_matches_by_index() {
+        let java = fixture(
+            "Overload.java",
+            "class Calc {\n  int add(int a) { return a; }\n  double add(double a) { return a; }\n  void clear() {}\n}\n",
+        );
+        let parsed = parse(&java).unwrap();
+        let paths: Vec<&str> = flatten(&parsed.symbols)
+            .iter()
+            .map(|symbol| symbol.name_path.as_str())
+            .collect();
+        assert_eq!(
+            paths,
+            vec!["Calc", "Calc/add[0]", "Calc/add[1]", "Calc/clear"]
+        );
+
+        assert_eq!(best_match(&parsed, "Calc/add[0]", false).unwrap().line, 2);
+        assert_eq!(best_match(&parsed, "Calc/add[1]", false).unwrap().line, 3);
+        assert_eq!(best_match(&parsed, "Calc/add[1]/", false).unwrap().line, 3);
+        assert_eq!(best_match(&parsed, "/Calc/add[1]", false).unwrap().line, 3);
+        assert_eq!(best_match(&parsed, "add[1]", false).unwrap().line, 3);
+        assert_eq!(find(&parsed, "Calc/add", false).len(), 2);
+        assert!(find(&parsed, "", false).is_empty());
+        assert!(best_match(&parsed, "Calc/add[2]", false).is_none());
+        assert!(best_match(&parsed, "Calc/clear[0]", false).is_none());
+        assert_eq!(best_match(&parsed, "Calc/ad[1]", true).unwrap().line, 3);
+
+        let rs = fixture(
+            "overloads.rs",
+            "struct Foo {}\nimpl Foo { fn a() {} }\nimpl Foo { fn b() {} }\n",
+        );
+        let rs_parsed = parse(&rs).unwrap();
+        let rs_paths: Vec<&str> = flatten(&rs_parsed.symbols)
+            .iter()
+            .map(|symbol| symbol.name_path.as_str())
+            .collect();
+        assert_eq!(
+            rs_paths,
+            vec!["Foo[0]", "Foo[1]", "Foo[1]/a", "Foo[2]", "Foo[2]/b"]
+        );
+        assert_eq!(best_match(&rs_parsed, "Foo/b", false).unwrap().line, 3);
+        assert_eq!(best_match(&rs_parsed, "Foo[2]/b", false).unwrap().line, 3);
+        assert!(best_match(&rs_parsed, "Foo[1]/b", false).is_none());
     }
 }
