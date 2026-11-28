@@ -8,4 +8,5 @@ license.workspace = true
 codemode-store = { path = "../store" }
 libc.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true

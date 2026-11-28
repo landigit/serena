@@ -1,0 +1,17 @@
+[package]
+name = "codemode-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codemode-core = { path = "../core" }
+codemode-lsp = { path = "../lsp" }
+codemode-memories = { path = "../memories" }
+codemode-retrieval = { path = "../retrieval" }
+codemode-sandbox = { path = "../sandbox" }
+codemode-store = { path = "../store" }
+codemode-ts = { path = "../ts" }
+dashmap.workspace = true
+serde.workspace = true
+serde_json.workspace = true

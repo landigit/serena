@@ -1,0 +1,6 @@
+{
+  "name": "codemode",
+  "version": "0.1.0",
+  "description": "Single GPL-3.0-or-later Rust binary fusing 40+-language structural/LSP code intelligence with sandboxed execution, SQLite FTS5 retrieval, and compaction recovery.",
+  "hooks": "./hooks/hooks.json"
+}

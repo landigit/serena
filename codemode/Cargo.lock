@@ -677,6 +677,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
+name = "codemode-cli"
+version = "0.1.0"
+dependencies = [
+ "codemode-core",
+ "codemode-hooks",
+ "codemode-lsp",
+ "codemode-mcp",
+ "codemode-retrieval",
+ "codemode-sandbox",
+ "codemode-store",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "codemode-core"
 version = "0.1.0"
 dependencies = [
@@ -710,6 +725,22 @@ dependencies = [
  "serde_json",
  "thiserror",
  "url",
+]
+
+[[package]]
+name = "codemode-mcp"
+version = "0.1.0"
+dependencies = [
+ "codemode-core",
+ "codemode-lsp",
+ "codemode-memories",
+ "codemode-retrieval",
+ "codemode-sandbox",
+ "codemode-store",
+ "codemode-ts",
+ "dashmap",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -750,6 +781,7 @@ dependencies = [
  "codemode-store",
  "libc",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 

@@ -1,0 +1,22 @@
+[package]
+name = "codemode-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "codemode"
+path = "src/main.rs"
+
+[dependencies]
+codemode-core = { path = "../core" }
+codemode-hooks = { path = "../hooks" }
+codemode-lsp = { path = "../lsp" }
+codemode-mcp = { path = "../mcp" }
+codemode-retrieval = { path = "../retrieval" }
+codemode-sandbox = { path = "../sandbox" }
+codemode-store = { path = "../store" }
+serde_json.workspace = true
+
+[dev-dependencies]
+toml.workspace = true
