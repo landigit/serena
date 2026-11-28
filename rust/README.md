@@ -18,6 +18,10 @@ This directory contains the Rust rewrite work for Serena:
 | [MAP.md](MAP.md) | `astlens` status and remaining roadmap |
 | [PORT_MAP.md](PORT_MAP.md) | Machine-generated `rust-anything` port map |
 | [HANDOFF.md](HANDOFF.md) | Checkpoint handoff notes and commands |
+| [codemode Design Spec](../docs/superpowers/specs/2026-11-28-codemode-design.md) | Unified GPL-3.0-or-later single-binary `codemode` spec (`code_*` tools, 40+ languages, clean-room `context-mode`) |
+| [codemode Implementation Plan](../docs/superpowers/plans/2026-11-28-codemode-plan.md) | 10-task execution plan (`codemode` W0–W6) |
+
+> **Target Product Track (`codemode`):** For the unified single-binary `codemode` architecture combining `astlens` (40+ languages via tree-sitter + `documentSymbol` fallback) with clean-room `context-mode` capabilities (`code_execute`, `code_index`, `code_search`, `code_resume`, `code_memory`, `code_batch`, `code_admin`), see the [codemode Implementation Plan](../docs/superpowers/plans/2026-11-28-codemode-plan.md).
 
 ## PR Roadmap (Unit-by-Unit Rust Port)
 
