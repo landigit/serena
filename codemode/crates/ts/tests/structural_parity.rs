@@ -92,6 +92,43 @@ fn parses_existing_and_newly_added_tree_sitter_grammars() {
             "class App {\n  int run() { return 1; }\n}\n",
             "App/run",
         ),
+        (
+            "main.go",
+            "package main\nfunc add(a int, b int) int { return a + b }\n",
+            "add",
+        ),
+        (
+            "app.rb",
+            "module Billing\n  class Invoice\n    def total\n      42\n    end\n  end\nend\n",
+            "Billing/Invoice/total",
+        ),
+        (
+            "app.php",
+            "<?php\nnamespace App;\nclass Greeter {\n  public function hello() { return 'hi'; }\n}\n",
+            "Greeter/hello",
+        ),
+        (
+            "App.cs",
+            "namespace App {\n  public class Calc {\n    public int Add(int a, int b) => a + b;\n  }\n}\n",
+            "App/Calc/Add",
+        ),
+        (
+            "App.kt",
+            "class Repo {\n  fun fetch(): Int = 1\n}\n",
+            "Repo/fetch",
+        ),
+        ("main.c", "int add(int a, int b) { return a + b; }\n", "add"),
+        (
+            "main.cpp",
+            "namespace Math { int mul(int a, int b) { return a * b; } }\n",
+            "Math/mul",
+        ),
+        ("app.gleam", "pub fn greet() { \"hi\" }\n", "greet"),
+        (
+            "token.sol",
+            "contract Token { function supply() public pure returns (uint256) { return 1; } }\n",
+            "Token/supply",
+        ),
     ];
 
     for (file_name, src, expected_symbol) in samples {

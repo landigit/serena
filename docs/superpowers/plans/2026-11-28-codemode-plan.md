@@ -6,7 +6,7 @@
 
 **Architecture:** One Cargo workspace (`crates/{core,ts,lsp,store,retrieval,sandbox,policy,hooks,memories,mcp,cli}`) compiling to one binary `codemode` that switches on `argv[1]` (`serve` for Tokio/MCP stdio, `hook` for `<10 ms` synchronous event checks, plus `index`/`doctor`/`stats`/`purge`/`upgrade`). All state lives in `.codemode/` (optional TOML config + git-tracked markdown memories) and `$XDG_DATA_HOME/codemode/<project-hash>/context.db` (SQLite FTS5), while pure algorithmic modules (`name-path`, `diagnostics-group`, `policy` shell lexer, `memories` reference graph, `retrieval` chunking/BM25) are parity-gated via `rust-anything` or deterministic golden cases.
 
-**Tech Stack:** Rust (edition `2024`, GPL-3.0-or-later), `tree-sitter` `0.27.x` (+ `arborium-*` / latest compatible grammars), `rusqlite` (bundled SQLite + FTS5), `dashmap`, `similar`, `toml`, `serde`/`serde_json`, `rust-anything` (for gated oracle units).
+**Tech Stack:** Rust (edition `2024`, GPL-3.0-or-later), `tree-sitter` `0.27.x` + uniform `arborium-*` (`2.18.x`) grammars, `rusqlite` (bundled SQLite + FTS5), `dashmap`, `similar`, `toml`, `serde`/`serde_json`, `rust-anything` (for gated oracle units).
 
 **Spec:** [docs/superpowers/specs/2026-11-28-codemode-design.md](../specs/2026-11-28-codemode-design.md)
 
@@ -14,7 +14,7 @@
 
 - License: **GPL-3.0-or-later** only; clean-room Rust reimplementation of `context-mode` behaviors from documented specs (never copy Elastic-2.0 source code).
 - Brand, repo, binary, and tools: **`codemode`**, tools strictly named **`code_*`** (`code_outline`, `code_read`, `code_references`, `code_diagnostics`, `code_edit`, `code_execute`, `code_index`, `code_search`, `code_resume`, `code_memory`, `code_batch`, `code_admin`).
-- Languages: Cover **all 40+ languages** from `src/solidlsp/ls_config.py` (`LanguageServerId`) using latest compatible `tree-sitter` crates where available + automatic LSP `textDocument/documentSymbol` fallback where no compatible grammar crate exists.
+- Languages: Cover **all 40+ languages** from `src/solidlsp/ls_config.py` (`LanguageServerId`) using `tree-sitter 0.27` with uniform `arborium-*` grammar crates + automatic LSP `textDocument/documentSymbol` fallback for niche languages not bundled by `arborium`.
 - Format: **Clean new format** (`.codemode/config.toml`, `.codemode/memories/*.md`, `$XDG_DATA_HOME/codemode/<hash>/context.db`); no `.serena/` legacy compatibility required.
 - Hosts priority: **Antigravity + OpenCode** first, then **Claude Code**, **Codex** future.
 - Hook latency: `codemode hook <event>` must run synchronously without spawning Tokio or LSPs (`<10 ms` target).
@@ -88,7 +88,7 @@
   - `codemode_ts::{ParsedFile, Symbol, OutlineResult, parse_file, find_symbols, best_match, replace_symbol_body, chunk_file}`
 
 - [ ] **Step 1: Write failing tests for tree-sitter grammar coverage, TSX nested hooks, overload `[i]` matching, and shape chunking**
-  Assert `parse_file` succeeds for existing 14 languages plus newly added `tree-sitter 0.27`-compatible grammars (e.g. Julia, Bash, Lua, Zig, Elixir, CSS/HTML/YAML/TOML/Markdown), returns `Err(UnsupportedGrammar)` cleanly for LSP-only languages, preserves `overload_idx` on sibling symbols, and splits long files into symbol-aligned chunks via `chunk_file`.
+  Assert `parse_file` succeeds using uniform `arborium-*` grammars across existing and newly added languages (e.g. TSX, Rust, Python, Java, C#, Kotlin, PHP, Ruby, C/C++, Go, Lean, Julia, Bash, Lua, Zig, Elixir, Dart, Haskell, Scala, Swift, CSS/HTML/YAML/TOML/JSON/Markdown), returns `Err(UnsupportedGrammar)` cleanly for LSP-only languages not bundled by `arborium`, preserves `overload_idx` on sibling symbols, and splits long files into symbol-aligned chunks via `chunk_file`.
 
 - [ ] **Step 2: Run test to verify it fails**
   Run: `cargo test --manifest-path codemode/Cargo.toml -p codemode-ts`

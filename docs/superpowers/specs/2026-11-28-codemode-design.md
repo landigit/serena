@@ -19,7 +19,7 @@ Codebases and long agent sessions suffer from two separate context leaks:
 ### Goals
 - **One publishable binary (`codemode`)** licensed **GPL-3.0-or-later**, reusing `rust/astlens`, `rust/name-path`, and `rust/diagnostics-group-rs`, and reimplementing `context-mode` capabilities **clean-room** from documented behavior (zero Elastic-2.0 source code).
 - **Unified `code_*` MCP tool surface (~12 tools)**: `code_outline`, `code_read`, `code_references`, `code_diagnostics`, `code_edit`, `code_execute`, `code_index`, `code_search`, `code_resume`, `code_memory`, `code_batch`, `code_admin`.
-- **All 40+ Serena languages** (`src/solidlsp/ls_config.py` `LanguageServerId`) using latest `tree-sitter 0.27`-compatible grammar crates where available (`tree-sitter-*` / `arborium-*`) and automatic LSP `textDocument/documentSymbol` fallback where no compatible grammar crate exists.
+- **All 40+ Serena languages** (`src/solidlsp/ls_config.py` `LanguageServerId`) using `tree-sitter 0.27` with uniform `arborium-*` grammar crates and automatic LSP `textDocument/documentSymbol` fallback for niche languages not bundled by `arborium`.
 - **Host adapters in rollout order**: **Antigravity + OpenCode** first (v1), **Claude Code** next (v1.1), **Codex** future (v2).
 - **Clean new native format**: `.codemode/config.toml` + `.codemode/memories/*.md` in projects, and `$XDG_DATA_HOME/codemode/<project-hash>/context.db` for local SQLite/FTS5 state (no `.serena/` legacy compatibility burden).
 - **Fast CLI dispatch**: `codemode serve` (MCP stdio), `codemode hook <event>` (lightweight no-Tokio-spinup path targeting `<10 ms`), `codemode index`, `codemode doctor`, `codemode stats`, `codemode purge`, `codemode upgrade`.
@@ -39,7 +39,7 @@ Codebases and long agent sessions suffer from two separate context leaks:
 ## 3. Constraints
 
 - **License**: `GPL-3.0-or-later` only. All `context-mode` behaviors (`store`, `retrieval`, `sandbox`, `policy`, `hooks`) must be clean-room Rust implementations written from specifications and conformance tests.
-- **Rust toolchain & crates**: Rust edition `2024`, `tree-sitter` `0.27.x` (latest compatible grammar crates; `arborium-*` where individual `tree-sitter-*` crates lag), `rusqlite` with bundled SQLite + FTS5, `dashmap`, `similar`, `toml`, `serde`/`serde_json`.
+- **Rust toolchain & crates**: Rust edition `2024`, `tree-sitter` `0.27.x` with uniform `arborium-*` (`2.18.x`) grammar crates, `rusqlite` with bundled SQLite + FTS5, `dashmap`, `similar`, `toml`, `serde`/`serde_json`.
 - **Hook latency budget**: `codemode hook <event>` must avoid starting Tokio or spawning LSPs so pre/post-tool hooks stay within `<10 ms`.
 - **Stateless per-call routing**: Every tool call derives `(language, workspace_root)` from the target path, never from mutable global `active_project` state.
 - **Bounded inline outputs**: Every tool response stays inline (`<= 6-8 KB` default) and spills oversized output into SQLite FTS5 with a `source_id` handle.

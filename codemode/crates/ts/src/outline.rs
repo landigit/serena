@@ -240,11 +240,15 @@ fn kind_label(kind: &str) -> &'static str {
         | "method"
         | "local_function_statement"
         | "function_declaration"
-        | "function_definition" => "function",
+        | "function_definition"
+        | "function" => "function",
         "structure" | "inductive" | "record_declaration" => "type",
         "instance" => "impl",
         "section" | "file_scoped_namespace_declaration" | "module_definition" => "module",
-        "object_declaration" | "companion_object" | "object_definition" => "class",
+        "object_declaration"
+        | "companion_object"
+        | "object_definition"
+        | "contract_declaration" => "class",
         "constant" | "enum_case" => "const",
         "property_declaration" | "property_element" | "block_mapping_pair" | "pair" => "variable",
         "table" | "table_array_element" => "section",
@@ -290,6 +294,7 @@ fn is_named_declaration(kind: &str) -> bool {
             | "class_declaration"
             | "abstract_class_declaration"
             | "class_definition"
+            | "contract_declaration"
             | "object_declaration"
             | "object_definition"
             | "companion_object"
@@ -298,6 +303,7 @@ fn is_named_declaration(kind: &str) -> bool {
             | "trait_definition"
             | "protocol_declaration"
             | "type_alias_declaration"
+            | "type_definition"
             | "type_item"
             | "type_spec"
             | "enum_declaration"
@@ -629,7 +635,7 @@ fn declarations(node: tree_sitter::Node<'_>, source: &str) -> Vec<(String, Strin
         return Vec::new();
     }
 
-    // Julia `signature` inside `function_definition` or `macro_definition`
+    // Julia `signature` inside `function_definition` or `macro_definition`, plus direct identifier children (e.g. Kotlin)
     if is_named_declaration(kind) {
         if let Some(name) = node.child_by_field_name("name") {
             return vec![(
@@ -642,6 +648,26 @@ fn declarations(node: tree_sitter::Node<'_>, source: &str) -> Vec<(String, Strin
             && let Some((name, byte)) = first_identifier(sig, source)
         {
             return vec![(name, kind_label(kind).to_string(), byte)];
+        }
+        let mut direct_cursor = node.walk();
+        for child in node.named_children(&mut direct_cursor) {
+            if matches!(
+                child.kind(),
+                "identifier"
+                    | "simple_identifier"
+                    | "type_identifier"
+                    | "field_identifier"
+                    | "property_identifier"
+                    | "name"
+                    | "word"
+                    | "alias"
+            ) {
+                return vec![(
+                    text(child, source).trim().to_string(),
+                    kind_label(kind).to_string(),
+                    child.start_byte(),
+                )];
+            }
         }
         if matches!(
             kind,
